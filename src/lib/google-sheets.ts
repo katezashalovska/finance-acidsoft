@@ -19,6 +19,8 @@ export async function fetchSheetData(gid: string, spreadsheetIdOverride?: string
       row.c.forEach((cell: any, index: number) => {
         const colLabel = table.cols[index].label || `col_${index}`;
         rowData[colLabel] = cell ? cell.v : null;
+        // Always add a indexed column key for reliable access across sheets
+        rowData[`col_${index}`] = cell ? cell.v : null;
       });
       return rowData;
     });
