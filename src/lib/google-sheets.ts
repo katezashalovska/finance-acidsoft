@@ -74,7 +74,8 @@ export function transformProjectData(rows: any[]) {
     return {
       name: r["col_0"],
       plannedMonthly,
-      realMonthly
+      realMonthly,
+      ltv: realMonthly.reduce((sum, val) => sum + (val || 0), 0)
     };
   });
 }

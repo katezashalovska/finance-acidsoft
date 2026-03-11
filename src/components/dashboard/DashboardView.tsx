@@ -58,6 +58,8 @@ export function DashboardView({ data, projects, team }: DashboardViewProps) {
     return typeof salary === 'number' || m.name.toLowerCase().includes("ceo");
   });
 
+  const totalLTV = projects.reduce((sum, p) => sum + (p.ltv || 0), 0);
+
   const stats = [
     { 
       title: "Revenue", 
@@ -71,7 +73,7 @@ export function DashboardView({ data, projects, team }: DashboardViewProps) {
       icon: Activity,
       trend: calculateTrend(currentMonthData["Net Profit"], prevMonthData["Net Profit"])
     },
-    { title: "Active Projects", value: activeProjects.length.toString(), icon: ShoppingCart },
+    { title: "Portfolio LTV", value: `$${Math.round(totalLTV).toLocaleString()}`, icon: ShoppingCart },
     { title: "Team Members", value: activeTeamMembers.length.toString(), icon: Users },
   ];
 
@@ -154,6 +156,7 @@ export function DashboardView({ data, projects, team }: DashboardViewProps) {
                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Project Name</th>
                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Planned</th>
                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Real ({currentMonthData.Month})</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">LTV (Lifetime)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -161,7 +164,8 @@ export function DashboardView({ data, projects, team }: DashboardViewProps) {
                 <tr key={idx} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 font-semibold text-sm">{project.name}</td>
                   <td className="px-6 py-4 text-sm text-muted-foreground">${Math.round(project.plannedMonthly[selectedMonthIndex]).toLocaleString()}</td>
-                  <td className="px-6 py-4 text-sm font-bold">${Math.round(project.realMonthly[selectedMonthIndex]).toLocaleString()}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-primary">${Math.round(project.realMonthly[selectedMonthIndex]).toLocaleString()}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-success">${Math.round(project.ltv).toLocaleString()}</td>
                 </tr>
               ))}
               {activeProjects.length === 0 && (
