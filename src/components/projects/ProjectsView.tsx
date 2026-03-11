@@ -11,51 +11,62 @@ import { cn } from "@/lib/utils";
 interface ProjectsViewProps {
   rates: any[];
   projectHours: any[];
+  payments: any[];
   initialMonthIndex: number;
 }
 
-export function ProjectsView({ rates, projectHours, initialMonthIndex }: ProjectsViewProps) {
+export function ProjectsView({ rates, projectHours, payments, initialMonthIndex }: ProjectsViewProps) {
   const router = useRouter();
   
   // Mapping for DateFilter display
-  // Our months array starts at May 2025
   const months = ["May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr"];
   
   const handleMonthChange = (idx: number) => {
     router.push(`/projects?month=${idx}`);
   };
 
-  const normalize = (name: string) => name?.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
+  const normalize = (name: string) => {
+    if (!name) return '';
+    // Strip everything after first bracket/paren for better matching
+    const baseName = name.split('(')[0].split('[')[0].trim();
+    return baseName.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
+  };
 
-  // Merge Rates and Hours
+  // Merge Rates, Hours, and Payments
   const projectSummary = projectHours.map(hoursData => {
-    // Find rate for this project
-    const rateItem = rates.find(r => 
-      normalize(r.name) === normalize(hoursData.projectName)
-    );
+    const normName = normalize(hoursData.projectName);
 
+    // Find rate
+    const rateItem = rates.find(r => normalize(r.name) === normName);
     const rate = rateItem ? rateItem.rate : 0;
-    const totalCost = hoursData.totalHours * rate;
-    const teamSpanCost = hoursData.teamSpanHours * rate;
+
+    // Find payment
+    const paymentItem = payments.find(p => normalize(p.name) === normName);
+    const realPayment = paymentItem ? (paymentItem.realMonthly[initialMonthIndex] || 0) : 0;
+
+    const totalValuation = hoursData.totalHours * rate;
+    const teamSpanValuation = hoursData.teamSpanHours * rate;
 
     return {
       name: hoursData.projectName,
       rate,
       totalHours: hoursData.totalHours,
       teamSpanHours: hoursData.teamSpanHours,
-      totalValuation: totalCost,
-      teamSpanValuation: teamSpanCost,
+      totalValuation,
+      teamSpanValuation,
+      realPayment,
       status: rateItem?.status || "Unknown"
     };
   }).sort((a, b) => b.totalValuation - a.totalValuation);
 
   const totalValuation = projectSummary.reduce((sum, p) => sum + p.totalValuation, 0);
+  const totalRealPayment = projectSummary.reduce((sum, p) => sum + p.realPayment, 0);
   const totalHours = projectSummary.reduce((sum, p) => sum + p.totalHours, 0);
 
   const stats = [
-    { title: "Total Project Value", value: `$${Math.round(totalValuation).toLocaleString()}`, icon: DollarSign },
+    { title: "Real Revenue", value: `$${Math.round(totalRealPayment).toLocaleString()}`, icon: DollarSign },
+    { title: "Billable (Est.)", value: `$${Math.round(totalValuation).toLocaleString()}`, icon: Briefcase },
     { title: "Billable Hours", value: `${Math.round(totalHours)}h`, icon: Clock },
-    { title: "Team Span Cost", value: `$${Math.round(projectSummary.reduce((sum, p) => sum + p.teamSpanValuation, 0)).toLocaleString()}`, icon: Briefcase },
     { title: "Active Projects", value: projectSummary.length.toString(), icon: Users },
   ];
 
@@ -64,7 +75,7 @@ export function ProjectsView({ rates, projectHours, initialMonthIndex }: Project
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Project Cost & Efficiency</h1>
-          <p className="text-muted-foreground mt-1">Analysis for {months[initialMonthIndex]} based on time tracking</p>
+          <p className="text-muted-foreground mt-1">Analysis for {months[initialMonthIndex]} based on time tracking and payments</p>
         </div>
         <DateFilter selectedMonth={initialMonthIndex} onMonthChange={handleMonthChange} />
       </div>
@@ -86,10 +97,10 @@ export function ProjectsView({ rates, projectHours, initialMonthIndex }: Project
               <tr className="bg-gray-50 border-b border-border">
                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Project Name</th>
                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground text-center">Rate</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground text-center">Total Team Hours</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground text-center">Span Hours (Elapsed)</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground text-right">Project Value</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground text-right">Span Value</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground text-center">Total Hours</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground text-center">Span Hours</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground text-right">Real Payment</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground text-right">Est. Value</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -104,19 +115,16 @@ export function ProjectsView({ rates, projectHours, initialMonthIndex }: Project
                   </td>
                   <td className="px-6 py-4 text-center">
                     <div className="text-sm font-bold">{Math.round(project.totalHours)}h</div>
-                    <div className="text-[10px] text-muted-foreground">Cumulative</div>
                   </td>
                   <td className="px-6 py-4 text-center">
                     <div className="text-sm font-bold text-amber-600">{Math.round(project.teamSpanHours)}h</div>
-                    <div className="text-[10px] text-muted-foreground">Max Team Overlap</div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="text-sm font-extrabold text-success">${Math.round(project.realPayment).toLocaleString()}</div>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="text-sm font-bold text-primary">${Math.round(project.totalValuation).toLocaleString()}</div>
                     <div className="text-[10px] text-muted-foreground lowercase">hours * rate</div>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="text-sm font-bold text-success">${Math.round(project.teamSpanValuation).toLocaleString()}</div>
-                    <div className="text-[10px] text-muted-foreground lowercase">span * rate</div>
                   </td>
                 </tr>
               ))}

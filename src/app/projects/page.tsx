@@ -1,4 +1,4 @@
-import { fetchSheetData, transformProjectRates, transformTimeTrackingData } from "@/lib/google-sheets";
+import { fetchSheetData, transformProjectRates, transformTimeTrackingData, transformProjectData } from "@/lib/google-sheets";
 import { ProjectsView } from "@/components/projects/ProjectsView";
 
 export const revalidate = 0;
@@ -8,7 +8,11 @@ export default async function ProjectsPage({ searchParams }: { searchParams: { m
   const ratesRows = await fetchSheetData("307856390");
   const rates = transformProjectRates(ratesRows);
 
-  // 2. Fetch Hours (Second sheet: 1naDmgdozaXJbsqMHSkA-sDtfUaoUFUIARna4hoB7nKA)
+  // 2. Fetch Payments (GID 204297728 in first sheet)
+  const paymentRows = await fetchSheetData("204297728");
+  const payments = transformProjectData(paymentRows);
+
+  // 3. Fetch Hours (Second sheet: 1naDmgdozaXJbsqMHSkA-sDtfUaoUFUIARna4hoB7nKA)
   // Monthly GIDs mapping
   const gids: Record<number, string> = {
     4: "1130786620", // Sep
@@ -31,6 +35,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: { m
     <ProjectsView 
       rates={rates} 
       projectHours={projectHours} 
+      payments={payments}
       initialMonthIndex={selectedMonth}
     />
   );
