@@ -25,11 +25,13 @@ export function ProjectsView({ rates, projectHours, initialMonthIndex }: Project
     router.push(`/projects?month=${idx}`);
   };
 
+  const normalize = (name: string) => name?.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
+
   // Merge Rates and Hours
   const projectSummary = projectHours.map(hoursData => {
     // Find rate for this project
     const rateItem = rates.find(r => 
-      r.name?.toLowerCase().trim() === hoursData.projectName?.toLowerCase().trim()
+      normalize(r.name) === normalize(hoursData.projectName)
     );
 
     const rate = rateItem ? rateItem.rate : 0;
