@@ -1,5 +1,6 @@
-export async function fetchSheetData(gid: string) {
-  const spreadsheetId = "1rVf7853cSxXa_DcErq062mSJzD0UlCITk4oFM0mQh-s";
+export async function fetchSheetData(gid: string, spreadsheetIdOverride?: string) {
+  const defaultSpreadsheetId = "1rVf7853cSxXa_DcErq062mSJzD0UlCITk4oFM0mQh-s";
+  const spreadsheetId = spreadsheetIdOverride || defaultSpreadsheetId;
   const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&gid=${gid}&t=${Date.now()}`;
 
   try {
@@ -125,6 +126,70 @@ export function transformOpexData(rows: any[]) {
     return {
       name: category,
       monthlyValues
+    };
+  });
+}
+
+export function transformProjectRates(rows: any[]) {
+  return rows.map(r => ({
+    name: r["col_0"],
+    rate: typeof r["col_6"] === 'number' ? r["col_6"] : (parseFloat(r["col_6"]) || 0),
+    status: r["col_7"] || "Unknown"
+  })).filter(p => p.name && p.name !== "Name" && p.name !== "Project");
+}
+
+export function transformTimeTrackingData(rows: any[]) {
+  const projects: any[] = [];
+  let currentProject: any = null;
+
+  rows.forEach(r => {
+    const colA = (r["col_0"] || "").toString().trim();
+    const colB = (r["col_1"] || "").toString().trim();
+
+    // Identify project headers: Usually a row with just text in col_0 and no category in col_1
+    // or specifically known project names from our other sheet.
+    // In this sheet, headers seem to be rows where col_1 is empty or doesn't contain a metric category.
+    if (colA && !colB && colA !== "Name" && colA !== "Billability %") {
+      currentProject = {
+        name: colA,
+        members: []
+      };
+      projects.push(currentProject);
+    } else if (currentProject && colB === "Actual (h)") {
+      // This is an actual hours row for a member under the current project
+      const weeklyHours = [
+        parseFloat(r["col_2"]) || 0,
+        parseFloat(r["col_3"]) || 0,
+        parseFloat(r["col_4"]) || 0,
+        parseFloat(r["col_5"]) || 0
+      ];
+      const total = parseFloat(r["col_6"]) || 0;
+
+      currentProject.members.push({
+        name: colA,
+        weeklyHours,
+        total
+      });
+    }
+  });
+
+  return projects.map(p => {
+    const totalHours = p.members.reduce((sum: number, m: any) => sum + m.total, 0);
+    
+    // Team Span Calculation: 1 hour for the whole team = 1 hour
+    // Since we have weekly buckets, we take the MAX of any member's hours in each week
+    const weeklyMax = [0, 0, 0, 0];
+    p.members.forEach((m: any) => {
+      for (let i = 0; i < 4; i++) {
+        weeklyMax[i] = Math.max(weeklyMax[i], m.weeklyHours[i]);
+      }
+    });
+    const teamSpanHours = weeklyMax.reduce((sum, h) => sum + h, 0);
+
+    return {
+      projectName: p.name,
+      totalHours,
+      teamSpanHours
     };
   });
 }

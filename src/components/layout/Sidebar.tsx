@@ -23,6 +23,7 @@ const navigation = [
   { name: "Payroll", href: "/payroll", icon: Wallet },
   { name: "Operational Expenses", href: "/opex", icon: PieChart },
   { name: "Profitability", href: "/profitability", icon: BarChart3 },
+  { name: "Projects", href: "/projects", icon: Briefcase },
   { name: "Team", href: "/team", icon: Users },
   { name: "Forecast", href: "/forecast", icon: Briefcase },
   { name: "Settings", href: "/settings", icon: Settings },
