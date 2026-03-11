@@ -31,6 +31,27 @@ const navigation = [
 export function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
+  
+  // User Profile State
+  const [avatar, setAvatar] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('user-avatar');
+    }
+    return null;
+  });
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        setAvatar(base64);
+        localStorage.setItem('user-avatar', base64);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   return (
     <>
@@ -94,60 +115,36 @@ export function Sidebar() {
 
           {/* Account Section */}
           <div className="p-4 border-t border-border">
-            {(() => {
-              const [avatar, setAvatar] = useState<string | null>(() => {
-                if (typeof window !== 'undefined') {
-                  return localStorage.getItem('user-avatar');
-                }
-                return null;
-              });
-
-              const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  const reader = new FileReader();
-                  reader.onloadend = () => {
-                    const base64 = reader.result as string;
-                    setAvatar(base64);
-                    localStorage.setItem('user-avatar', base64);
-                  };
-                  reader.readAsDataURL(file);
-                }
-              };
-
-              return (
-                <div 
-                  className="group flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer relative"
-                  onClick={() => document.getElementById('avatar-upload')?.click()}
-                >
-                  <div className="relative w-10 h-10 shrink-0">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-purple-500 flex items-center justify-center text-white font-bold overflow-hidden border-2 border-white shadow-sm">
-                      {avatar ? (
-                        <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
-                      ) : (
-                        "AS"
-                      )}
-                    </div>
-                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-white rounded-full border border-border flex items-center justify-center text-primary shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                      <BarChart3 size={10} />
-                    </div>
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold truncate">AcidSoft</p>
-                    <p className="text-[10px] text-muted-foreground truncate uppercase tracking-wider font-semibold">Administrator</p>
-                  </div>
-
-                  <input 
-                    id="avatar-upload"
-                    type="file" 
-                    className="hidden" 
-                    accept="image/*"
-                    onChange={handleUpload}
-                  />
+            <div 
+              className="group flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer relative"
+              onClick={() => document.getElementById('avatar-upload')?.click()}
+            >
+              <div className="relative w-10 h-10 shrink-0">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-purple-500 flex items-center justify-center text-white font-bold overflow-hidden border-2 border-white shadow-sm">
+                  {avatar ? (
+                    <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    "AS"
+                  )}
                 </div>
-              );
-            })()}
+                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-white rounded-full border border-border flex items-center justify-center text-primary shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                  <BarChart3 size={10} />
+                </div>
+              </div>
+              
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold truncate">AcidSoft</p>
+                <p className="text-[10px] text-muted-foreground truncate uppercase tracking-wider font-semibold">Administrator</p>
+              </div>
+
+              <input 
+                id="avatar-upload"
+                type="file" 
+                className="hidden" 
+                accept="image/*"
+                onChange={handleUpload}
+              />
+            </div>
           </div>
         </div>
       </aside>
