@@ -37,18 +37,21 @@ export function RevenueView({ projects }: RevenueViewProps) {
   const months = ["May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr"];
   const currentMonthName = months[selectedMonthIndex];
 
+  const performanceMonthIndex = selectedMonthIndex + 1;
+  const performanceMonthName = months[performanceMonthIndex] || "Next Month";
+
   // Calculate totals from ALL projects for the selected month FIRST
-  const totalReal = projects.reduce((sum, p) => sum + (p.realCurrentMonthly[selectedMonthIndex] || 0), 0);
-  const totalPlanned = projects.reduce((sum, p) => sum + (p.plannedMonthly[selectedMonthIndex] || 0), 0);
+  const totalReal = projects.reduce((sum, p) => sum + (p.realCurrentMonthly[performanceMonthIndex] || 0), 0);
+  const totalPlanned = projects.reduce((sum, p) => sum + (p.plannedMonthly[performanceMonthIndex] || 0), 0);
   
   // Identify active projects based on PLAN for the counter
-  const activeCount = projects.filter(p => p.plannedMonthly[selectedMonthIndex] > 0).length;
+  const activeCount = projects.filter(p => p.plannedMonthly[performanceMonthIndex] > 0).length;
 
   // Map only projects that have EITHER plan or real revenue to show in the list/chart
   const displayData = projects.map(p => ({
     name: p.name,
-    Planned: p.plannedMonthly[selectedMonthIndex] || 0,
-    Real: p.realCurrentMonthly[selectedMonthIndex] || 0,
+    Planned: p.plannedMonthly[performanceMonthIndex] || 0,
+    Real: p.realCurrentMonthly[performanceMonthIndex] || 0,
   })).filter(p => p.Planned > 0 || p.Real > 0);
 
   const revenueStats = [
@@ -63,7 +66,7 @@ export function RevenueView({ projects }: RevenueViewProps) {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Revenue Analysis</h1>
-          <p className="text-muted-foreground mt-1">Project performance for {currentMonthName} 2025-26</p>
+          <p className="text-muted-foreground mt-1">Project performance for {performanceMonthName} 2025-26</p>
         </div>
         <DateFilter 
           selectedMonth={selectedMonthIndex} 
@@ -78,7 +81,7 @@ export function RevenueView({ projects }: RevenueViewProps) {
       </div>
 
       <div className="card-premium p-6">
-        <h3 className="text-lg font-bold mb-6">Planned vs Real by Project ({currentMonthName})</h3>
+        <h3 className="text-lg font-bold mb-6">Planned vs Real by Project ({performanceMonthName})</h3>
         <div className="h-[400px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={displayData}>
