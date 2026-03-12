@@ -11,11 +11,12 @@ const months = [
 ];
 
 interface DateFilterProps {
-  selectedMonth: number;
-  onMonthChange: (index: number) => void;
+  selectedMonth: number | 'lifetime';
+  onMonthChange: (value: number | 'lifetime') => void;
+  showLifetime?: boolean;
 }
 
-export function DateFilter({ selectedMonth, onMonthChange }: DateFilterProps) {
+export function DateFilter({ selectedMonth, onMonthChange, showLifetime = false }: DateFilterProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -25,7 +26,7 @@ export function DateFilter({ selectedMonth, onMonthChange }: DateFilterProps) {
         className="flex items-center gap-2 px-4 py-2 bg-white border border-border rounded-xl text-sm font-medium hover:bg-gray-50 transition-all shadow-sm"
       >
         <Calendar size={18} className="text-muted-foreground" />
-        <span>{months[selectedMonth]}</span>
+        <span>{selectedMonth === 'lifetime' ? "Lifetime" : months[selectedMonth as number]}</span>
       </button>
 
       {isOpen && (
@@ -36,6 +37,22 @@ export function DateFilter({ selectedMonth, onMonthChange }: DateFilterProps) {
               Select Month
             </div>
             <div className="grid grid-cols-1 gap-1 px-2 mt-1 max-h-64 overflow-y-auto">
+              {showLifetime && (
+                <button
+                  onClick={() => {
+                    onMonthChange('lifetime');
+                    setIsOpen(false);
+                  }}
+                  className={cn(
+                    "w-full text-left px-3 py-2 rounded-lg text-sm transition-colors",
+                    selectedMonth === 'lifetime' 
+                      ? "bg-primary text-white font-semibold" 
+                      : "hover:bg-gray-100 text-foreground"
+                  )}
+                >
+                  Lifetime
+                </button>
+              )}
               {months.map((month, idx) => (
                 <button
                   key={month}

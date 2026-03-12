@@ -38,7 +38,7 @@ export function RevenueView({ projects }: RevenueViewProps) {
   const currentMonthName = months[selectedMonthIndex];
 
   // Calculate totals from ALL projects for the selected month FIRST
-  const totalReal = projects.reduce((sum, p) => sum + (p.realMonthly[selectedMonthIndex] || 0), 0);
+  const totalReal = projects.reduce((sum, p) => sum + (p.realCurrentMonthly[selectedMonthIndex] || 0), 0);
   const totalPlanned = projects.reduce((sum, p) => sum + (p.plannedMonthly[selectedMonthIndex] || 0), 0);
   
   // Identify active projects based on PLAN for the counter
@@ -48,7 +48,7 @@ export function RevenueView({ projects }: RevenueViewProps) {
   const displayData = projects.map(p => ({
     name: p.name,
     Planned: p.plannedMonthly[selectedMonthIndex] || 0,
-    Real: p.realMonthly[selectedMonthIndex] || 0,
+    Real: p.realCurrentMonthly[selectedMonthIndex] || 0,
   })).filter(p => p.Planned > 0 || p.Real > 0);
 
   const revenueStats = [

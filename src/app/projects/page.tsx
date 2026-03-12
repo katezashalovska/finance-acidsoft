@@ -25,11 +25,53 @@ export default async function ProjectsPage({ searchParams }: { searchParams: { m
   };
 
   // Determine which month to fetch (Default to Mar 2026 index 10)
-  const selectedMonth = searchParams.month ? parseInt(searchParams.month) : 10; 
-  const gid = gids[selectedMonth] || "387891592"; // Fallback to March 2026
+  const selectedMonthStr = searchParams.month;
+  const isLifetime = selectedMonthStr === 'lifetime';
+  const selectedMonth = isLifetime ? 'lifetime' : (selectedMonthStr ? parseInt(selectedMonthStr) : 10); 
 
-  const hourRows = await fetchSheetData(gid, "1naDmgdozaXJbsqMHSkA-sDtfUaoUFUIARna4hoB7nKA");
-  const projectHours = transformTimeTrackingData(hourRows);
+  let projectHours: any[] = [];
+
+  if (isLifetime) {
+    const allGids = Object.values(gids);
+    const allMonthsHours = await Promise.all(
+      allGids.map(g => fetchSheetData(g, "1naDmgdozaXJbsqMHSkA-sDtfUaoUFUIARna4hoB7nKA"))
+    );
+    
+    // Merge projectHours
+    const mergedProjects = new Map<string, any>();
+    
+    for (const rows of allMonthsHours) {
+        const monthHours = transformTimeTrackingData(rows);
+        for (const proj of monthHours) {
+            if (!mergedProjects.has(proj.projectName)) {
+                mergedProjects.set(proj.projectName, {
+                    projectName: proj.projectName,
+                    totalHours: 0,
+                    teamSpanHours: 0,
+                    members: []
+                });
+            }
+            const p = mergedProjects.get(proj.projectName);
+            p.totalHours += proj.totalHours;
+            p.teamSpanHours += proj.teamSpanHours || 0;
+            
+            // merge members
+            for (const m of proj.members || []) {
+                const existingMember = p.members.find((x: any) => x.name === m.name);
+                if (existingMember) {
+                    existingMember.total += m.total;
+                } else {
+                    p.members.push({ ...m });
+                }
+            }
+        }
+    }
+    projectHours = Array.from(mergedProjects.values());
+  } else {
+    const gid = gids[selectedMonth as number] || "387891592"; // Fallback to March 2026
+    const hourRows = await fetchSheetData(gid, "1naDmgdozaXJbsqMHSkA-sDtfUaoUFUIARna4hoB7nKA");
+    projectHours = transformTimeTrackingData(hourRows);
+  }
 
   return (
     <ProjectsView 

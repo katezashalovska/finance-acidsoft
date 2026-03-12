@@ -43,9 +43,15 @@ export function transformModelData(rows: any[]) {
   
   return months.map((m, i) => ({
     Month: m,
+    // Planned values (from current month column)
+    // Revenue row: May starts at col_1, Jun at col_2...
     Revenue: revenueRow[`col_${i + 1}`] || 0,
     GrossProfit: netProfitRow[`col_${i + 1}`] || 0,
-    "Net Profit": actualNetProfitRow[`col_${i + 1}`] || 0
+    "Net Profit": actualNetProfitRow[`col_${i + 1}`] || 0,
+    
+    // Real values (Cash flow): take from NEXT month column
+    "Real Revenue": revenueRow[`col_${i + 2}`] || 0,
+    "Real Net Profit": actualNetProfitRow[`col_${i + 2}`] || 0
   }));
 }
 
@@ -61,23 +67,55 @@ export function transformProjectData(rows: any[]) {
   return projectRows.map(r => {
     const plannedMonthly = new Array(12).fill(0);
     const realMonthly = new Array(12).fill(0);
+    const realCurrentMonthly = new Array(12).fill(0);
+    // Oct starts at index 5
+    // Planned Oct: col 1
+    // Real Oct: Dec Real (col 2 pairs later) - No, based on observation:
+    // Oct is index 5. 
+    // Data col mapping:
+    // col 1: Oct Planned? 
+    // col 2: Nov Planned
+    // col 3: Dec Planned? or Real? 
+    // Looking at "colIdx = 2 + (i * 2)" for Nov (i=0) -> col 2.
+    // Nov Planned = col 2
+    // Dec Planned = col 4
+    // Jan Planned = col 6
+    // Feb Planned = col 8
+    // Mar Planned = col 10
+    // Apr Planned = col 12
     
-    // Oct
-    realMonthly[5] = r["col_1"] || 0;
+    // Oct Planned is indeed col 1.
     plannedMonthly[5] = r["col_1"] || 0; 
-
+    // Oct Real is Nov's payment? Let's use simpler logic: 
+    // realMonthly[i] = plannedMonthly[i+1] if real columns are missing for some.
+    // BUT the user said "sum from column for month + 1".
+    
     // Nov to Apr (pairs)
     for (let i = 0; i < 6; i++) {
-      const monthIdx = 6 + i;
-      const colIdx = 2 + (i * 2);
+      const monthIdx = 6 + i; // Nov (6), Dec (7)...
+      const colIdx = 2 + (i * 2); 
       plannedMonthly[monthIdx] = r[`col_${colIdx}`] || 0;
-      realMonthly[monthIdx] = r[`col_${colIdx + 1}`] || 0;
+      
+      // REAL for this month is taken from the NEXT month's REAL column.
+      const nextColIdx = 2 + ((i + 1) * 2);
+      realMonthly[monthIdx] = r[`col_${nextColIdx + 1}`] || 0;
+      
+      // REAL for the CURRENT month (no offset)
+      realCurrentMonthly[monthIdx] = r[`col_${colIdx + 1}`] || 0;
     }
+    
+    // Handle Oct Real (month index 5) -> takes from Nov Real (month index 6 column)
+    realMonthly[5] = r["col_3"] || 0;
+    realCurrentMonthly[5] = r["col_2"] || 0;
+    
+    // Special check for realMonthly[10] (March) -> should take from col 12 (April Planned)
+    // The loop above for i=4 (Mar) sets realMonthly[10] = r[`col_12`] (i+1=5) which is correct.
     
     return {
       name: r["col_0"],
       plannedMonthly,
       realMonthly,
+      realCurrentMonthly,
       ltv: realMonthly.reduce((sum, val) => sum + (val || 0), 0)
     };
   });
@@ -121,7 +159,8 @@ export function transformOpexData(rows: any[]) {
     
     if (row) {
       for (let i = 0; i < 12; i++) {
-        monthlyValues[i] = row[`col_${i + 1}`] || 0;
+        // Opex also follows the month + 1 rule for real values
+        monthlyValues[i] = row[`col_${i + 2}`] || 0;
       }
     }
 
@@ -148,7 +187,8 @@ export function transformTimeTrackingData(rows: any[]) {
   const skipHeaders = [
     "Name", "Billability %", "Plan per team (h)", "Actual team (h)", 
     "Overtime/Shortage (h)", "Total hours", "DATA FROM CLIENT",
-    "Billability Kitsune (Kate)", "Billability Akatsuki (Oleksandr)"
+    "Billability Kitsune (Kate)", "Billability Akatsuki (Oleksandr)",
+    "Kitsune (Kate)", "Other activity", "Akatsuki (Oleksandr)"
   ];
 
   rows.forEach(r => {
@@ -156,12 +196,16 @@ export function transformTimeTrackingData(rows: any[]) {
     const colB = (r["col_1"] === null || r["col_1"] === undefined || r["col_1"] === "null") ? "" : r["col_1"].toString().trim();
 
     // Identify project headers
-    if (colA && !colB && !skipHeaders.some(h => colA.includes(h))) {
-      currentProject = {
-        name: colA,
-        members: []
-      };
-      projects.push(currentProject);
+    if (colA && !colB) {
+      if (skipHeaders.some(h => colA.includes(h))) {
+        currentProject = null;
+      } else {
+        currentProject = {
+          name: colA,
+          members: []
+        };
+        projects.push(currentProject);
+      }
     } 
     
     // Track person name
@@ -202,7 +246,8 @@ export function transformTimeTrackingData(rows: any[]) {
     return {
       projectName: p.name,
       totalHours,
-      teamSpanHours
+      teamSpanHours,
+      members: p.members
     };
   }).filter(p => p.totalHours > 0);
 }

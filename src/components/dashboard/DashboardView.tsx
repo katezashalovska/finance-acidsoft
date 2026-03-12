@@ -1,6 +1,6 @@
 "use client";
 
-import { Users, DollarSign, Activity, ShoppingCart } from "lucide-react";
+import { Users, DollarSign, Activity, ShoppingCart, ArrowUpDown } from "lucide-react";
 import { StatsCard } from "@/components/ui/StatsCard";
 import { Badge } from "@/components/ui/Badge";
 import { 
@@ -49,8 +49,58 @@ export function DashboardView({ data, projects, team }: DashboardViewProps) {
     return { value: Math.abs(Math.round(diff * 10) / 10), isPositive: diff >= 0 };
   };
 
-  // Projects for the selected month (using Planned Revenue as trigger)
-  const activeProjects = projects.filter(p => p.plannedMonthly[selectedMonthIndex] > 0);
+  const [sortConfig, setSortConfig] = useState<{ key: 'ltv' | 'name' | 'planned' | 'real', direction: 'asc' | 'desc' } | null>(null);
+
+  const requestSort = (key: 'ltv' | 'name' | 'planned' | 'real') => {
+    let direction: 'asc' | 'desc' = 'desc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = 'asc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const sortedProjects = [...projects].sort((a, b) => {
+    if (sortConfig) {
+      const { key, direction } = sortConfig;
+      let aVal, bVal;
+      if (key === 'ltv') {
+        aVal = a.ltv || 0;
+        bVal = b.ltv || 0;
+      } else if (key === 'name') {
+        aVal = a.name;
+        bVal = b.name;
+      } else if (key === 'planned') {
+        aVal = a.plannedMonthly[selectedMonthIndex] || 0;
+        bVal = b.plannedMonthly[selectedMonthIndex] || 0;
+      } else if (key === 'real') {
+        aVal = a.realMonthly[selectedMonthIndex] || 0;
+        bVal = b.realMonthly[selectedMonthIndex] || 0;
+      } else {
+        aVal = 0; bVal = 0;
+      }
+
+      if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+      return 0;
+    }
+
+    // Default sorting: active this month first
+    const aPlanned = a.plannedMonthly[selectedMonthIndex] || 0;
+    const aReal = a.realMonthly[selectedMonthIndex] || 0;
+    const bPlanned = b.plannedMonthly[selectedMonthIndex] || 0;
+    const bReal = b.realMonthly[selectedMonthIndex] || 0;
+
+    const aActive = aPlanned > 0 || aReal > 0;
+    const bActive = bPlanned > 0 || bReal > 0;
+
+    if (aActive && !bActive) return -1;
+    if (!aActive && bActive) return 1;
+
+    // Both active or both inactive, sort by LTV desc
+    return (b.ltv || 0) - (a.ltv || 0);
+  });
+
+  const activeCount = projects.filter(p => (p.plannedMonthly[selectedMonthIndex] || 0) > 0).length;
   
   // Team members active in the selected month
   const activeTeamMembers = team.filter(m => {
@@ -147,30 +197,68 @@ export function DashboardView({ data, projects, team }: DashboardViewProps) {
       <div className="card-premium">
         <div className="p-6 border-b border-border flex justify-between items-center">
           <h3 className="text-lg font-bold">Project Performance</h3>
-          <Badge variant="info">{activeProjects.length} Planned in {currentMonthData.Month}</Badge>
+          <Badge variant="info">{activeCount} / {projects.length} Projects in {currentMonthData.Month}</Badge>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="bg-gray-50">
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Project Name</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Planned</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Real ({currentMonthData.Month})</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">LTV (Lifetime)</th>
+                <th 
+                  className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-primary transition-colors"
+                  onClick={() => requestSort('name')}
+                >
+                  <div className="flex items-center gap-2">
+                    Project Name
+                    <ArrowUpDown className="w-3 h-3" />
+                  </div>
+                </th>
+                <th 
+                  className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-primary transition-colors"
+                  onClick={() => requestSort('planned')}
+                >
+                  <div className="flex items-center gap-2">
+                    Planned
+                    <ArrowUpDown className="w-3 h-3" />
+                  </div>
+                </th>
+                <th 
+                  className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-primary transition-colors"
+                  onClick={() => requestSort('real')}
+                >
+                  <div className="flex items-center gap-2">
+                    Real ({currentMonthData.Month})
+                    <ArrowUpDown className="w-3 h-3" />
+                  </div>
+                </th>
+                <th 
+                  className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-primary transition-colors"
+                  onClick={() => requestSort('ltv')}
+                >
+                  <div className="flex items-center gap-2">
+                    LTV (Lifetime)
+                    <ArrowUpDown className="w-3 h-3" />
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {activeProjects.map((project, idx) => (
-                <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 font-semibold text-sm">{project.name}</td>
-                  <td className="px-6 py-4 text-sm text-muted-foreground">${Math.round(project.plannedMonthly[selectedMonthIndex]).toLocaleString()}</td>
-                  <td className="px-6 py-4 text-sm font-bold text-primary">${Math.round(project.realMonthly[selectedMonthIndex]).toLocaleString()}</td>
-                  <td className="px-6 py-4 text-sm font-bold text-success">${Math.round(project.ltv).toLocaleString()}</td>
-                </tr>
-              ))}
-              {activeProjects.length === 0 && (
+              {sortedProjects.map((project, idx) => {
+                const isInactive = (project.plannedMonthly[selectedMonthIndex] || 0) === 0 && (project.realMonthly[selectedMonthIndex] || 0) === 0;
+                return (
+                  <tr key={idx} className={cn("hover:bg-gray-50 transition-colors", isInactive && "opacity-60 grayscale-[0.5]")}>
+                    <td className="px-6 py-4 font-semibold text-sm">
+                      {project.name}
+                      {isInactive && <span className="ml-2 text-[10px] uppercase font-normal text-muted-foreground tracking-tighter">(Inactive this month)</span>}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-muted-foreground">${Math.round(project.plannedMonthly[selectedMonthIndex] || 0).toLocaleString()}</td>
+                    <td className="px-6 py-4 text-sm font-bold text-primary">${Math.round(project.realMonthly[selectedMonthIndex] || 0).toLocaleString()}</td>
+                    <td className="px-6 py-4 text-sm font-bold text-success">${Math.round(project.ltv || 0).toLocaleString()}</td>
+                  </tr>
+                );
+              })}
+              {sortedProjects.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-6 py-8 text-center text-muted-foreground">No active projects planned for this month</td>
+                  <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">No projects found</td>
                 </tr>
               )}
             </tbody>
