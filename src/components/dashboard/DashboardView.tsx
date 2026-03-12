@@ -40,6 +40,7 @@ export function DashboardView({ data, projects, team }: DashboardViewProps) {
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(getDefaultMonthIndex());
   
   const displayMonthIndex = selectedMonthIndex + 1;
+  const originalMonthData = data[selectedMonthIndex] || {};
   
   // Stats for the selected month (offset by + 1)
   const currentMonthData = data[displayMonthIndex] || {};
@@ -136,7 +137,7 @@ export function DashboardView({ data, projects, team }: DashboardViewProps) {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard Overview</h1>
-          <p className="text-muted-foreground mt-1">Real-time data for {currentMonthData.Month || "N/A"}</p>
+          <p className="text-muted-foreground mt-1">Real-time data for {originalMonthData.Month || "N/A"} (showing projections for {performanceMonthName})</p>
         </div>
         <DateFilter 
           selectedMonth={selectedMonthIndex} 
@@ -201,7 +202,7 @@ export function DashboardView({ data, projects, team }: DashboardViewProps) {
       <div className="card-premium">
         <div className="p-6 border-b border-border flex justify-between items-center">
           <h3 className="text-lg font-bold">Project Performance</h3>
-          <Badge variant="info">{activeCount} / {projects.length} Projects in {performanceMonthName}</Badge>
+          <Badge variant="info">{activeCount} / {projects.length} Projects active</Badge>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">

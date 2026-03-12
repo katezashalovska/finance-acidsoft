@@ -36,6 +36,7 @@ export function ProfitabilityView({ data }: ProfitabilityViewProps) {
   const [selectedMonthIndex, setSelectedMonthIndex] = useState<number | 'lifetime'>(getDefaultMonthIndex());
   
   const months = ["May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr"];
+  const originalMonthName = selectedMonthIndex === 'lifetime' ? 'Lifetime' : months[selectedMonthIndex as number];
   const displayMonthIndex = selectedMonthIndex === 'lifetime' ? 'lifetime' : (selectedMonthIndex as number) + 1;
   const currentMonthName = selectedMonthIndex === 'lifetime' ? 'Lifetime' : (months[displayMonthIndex as number] || "Next Month");
 
@@ -94,7 +95,7 @@ export function ProfitabilityView({ data }: ProfitabilityViewProps) {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Profitability Analysis</h1>
-          <p className="text-muted-foreground mt-1">Margins and efficiency metrics for {currentMonthName}</p>
+          <p className="text-muted-foreground mt-1">Margins and efficiency metrics for {originalMonthName} (showing projections for {currentMonthName})</p>
         </div>
         <div className="flex items-center gap-4">
           <button 
