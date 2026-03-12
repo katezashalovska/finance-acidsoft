@@ -93,9 +93,9 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {} }: 
       }
 
       const pData = findProjectData(proj.projectName);
-      // Use the planned revenue for the hours month, or real current month payment
-      const monthIdx = tableMonthIndex as number;
-      const realIncome = pData ? (pData.realCurrentMonthly[monthIdx] || pData.plannedMonthly[monthIdx] || 0) : 0;
+      // Use next month's revenue (e.g. for March hours → April revenue)
+      const nextMonthIdx = (tableMonthIndex as number) + 1;
+      const realIncome = pData ? (pData.realCurrentMonthly[nextMonthIdx] || pData.plannedMonthly[nextMonthIdx] || 0) : 0;
       
       if (proj.members) {
         // Proportional rate: rate_i = (hours_i * revenue) / sum(hours_j^2)
@@ -201,7 +201,7 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {} }: 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold">Project Effective Rates</h2>
-            <p className="text-sm text-muted-foreground mt-1">Effective hourly rate based on {tableMonthName} revenue and logged hours</p>
+            <p className="text-sm text-muted-foreground mt-1">Effective rate based on {tableMonthName} hours against {tablePerfMonthName} revenue</p>
           </div>
           <div className="flex flex-col md:flex-row items-center gap-4">
             <select
