@@ -43,6 +43,13 @@ export function TeamView({ team }: TeamViewProps) {
     { title: "Reporting Month", value: currentMonthName, icon: Trophy },
   ];
 
+  const getCategory = (salary: number) => {
+    if (salary >= 700) return "A";
+    if (salary >= 500) return "B";
+    if (salary >= 300) return "C";
+    return "Intern";
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -74,26 +81,38 @@ export function TeamView({ team }: TeamViewProps) {
                 <tr className="bg-gray-50 border-b border-border">
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Name / Role</th>
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Salary ({currentMonthName})</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Real Rate</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Category</th>
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {activeMembers.map((member, idx) => (
+                {activeMembers.map((member, idx) => {
+                  const salary = member.monthlySalaries[selectedMonthIndex] || 0;
+                  const realRate = salary > 0 ? salary / 160 : 0;
+                  const category = getCategory(salary);
+                  
+                  return (
                   <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 font-semibold text-sm">{member.name || "Unnamed"}</td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground">${Math.round(member.monthlySalaries[selectedMonthIndex] || 0).toLocaleString()}</td>
+                    <td className="px-6 py-4 text-sm text-muted-foreground">${Math.round(salary).toLocaleString()}</td>
+                    <td className="px-6 py-4 text-sm font-semibold">${realRate.toFixed(2)}/hr</td>
                     <td className="px-6 py-4">
-                      {member.monthlySalaries[selectedMonthIndex] > 0 ? (
+                      <Badge variant="default" className="font-bold">{category}</Badge>
+                    </td>
+                    <td className="px-6 py-4">
+                      {salary > 0 ? (
                         <Badge variant="success">Active</Badge>
                       ) : (
                         <Badge variant="warning">On Bench</Badge>
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
                 {activeMembers.length === 0 && (
                   <tr>
-                    <td colSpan={3} className="px-6 py-8 text-center text-muted-foreground">No active team members for this month</td>
+                    <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">No active team members for this month</td>
                   </tr>
                 )}
               </tbody>
