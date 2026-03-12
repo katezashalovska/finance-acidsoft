@@ -12,9 +12,10 @@ interface TeamViewProps {
   team: any[];
   projectsData?: any[];
   monthlyProjectHours?: Record<number, any[]>;
+  billedRevenueData?: any[];
 }
 
-export function TeamView({ team, projectsData = [], monthlyProjectHours = {} }: TeamViewProps) {
+export function TeamView({ team, projectsData = [], monthlyProjectHours = {}, billedRevenueData = [] }: TeamViewProps) {
   const getDefaultMonthIndex = () => {
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -56,17 +57,17 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {} }: 
     return "Intern";
   };
 
-  // Fuzzy match: payment names like "SOLOAPP (Max)" should match hours name "SOLOAPP"
-  const findProjectData = (hoursProjectName: string) => {
+  // Fuzzy match: billed revenue names like "SOLOAPP (Max)" should match hours name "SOLOAPP"
+  const findBilledData = (hoursProjectName: string) => {
     const normalizedName = hoursProjectName.toLowerCase().trim();
-    return projectsData.find(p => {
-      const paymentName = p.name.toLowerCase().trim();
-      // Extract base name before parentheses from payment name
-      const paymentBase = paymentName.split('(')[0].trim();
-      return paymentBase === normalizedName || 
-             paymentName === normalizedName ||
-             paymentName.startsWith(normalizedName) ||
-             normalizedName.startsWith(paymentBase);
+    return billedRevenueData.find(p => {
+      const billedName = p.name.toLowerCase().trim();
+      // Extract base name before parentheses
+      const billedBase = billedName.split('(')[0].trim();
+      return billedBase === normalizedName || 
+             billedName === normalizedName ||
+             billedName.startsWith(normalizedName) ||
+             normalizedName.startsWith(billedBase);
     });
   };
 
@@ -77,48 +78,89 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {} }: 
   });
   const uniqueProjects = Array.from(allHoursProjects).sort();
 
-  // Calculate project effective rates for the selected table month
+  // Calculate project effective rates:
+  // Total Revenue = Project Rate × Billed Hours (from financial model)
+  // Then distribute among developers proportionally by their logged hours
+  // Effective Rate = Total Revenue / Total Logged Hours (real cost per dev hour)
   const projectRatesMap: any[] = [];
-  const tablePerfMonth = (tableMonthIndex as number) + 1;
   const tableMonthName = months[tableMonthIndex as number] || "N/A";
-  const tablePerfMonthName = months[tablePerfMonth] || "Next Month";
 
-  if (monthlyProjectHours[tableMonthIndex as number]) {
-    const hoursData = monthlyProjectHours[tableMonthIndex as number] || [];
-    
-    hoursData.forEach(proj => {
-      // Apply project filter
-      if (tableProject !== 'All' && proj.projectName !== tableProject) {
-        return;
-      }
+  // Build from billedRevenueData (which has rate and billed hours per project per month)
+  const monthIdx = tableMonthIndex as number;
 
-      const pData = findProjectData(proj.projectName);
-      // Use next month's REAL revenue only (e.g. for March hours → April real payment)
-      const nextMonthIdx = (tableMonthIndex as number) + 1;
-      const realIncome = pData ? (pData.realCurrentMonthly[nextMonthIdx] || 0) : 0;
-      
-      if (proj.members) {
-        // Proportional rate: rate_i = (hours_i * revenue) / sum(hours_j^2)
-        // This ensures rate ratio = hours ratio (e.g. 20h vs 10h → rate 2:1)
-        const sumHoursSquared = proj.members.reduce((sum: number, m: any) => sum + (m.total * m.total), 0);
-        
-        proj.members.forEach((member: any) => {
-          if (member.total > 0) {
-            const rate = sumHoursSquared > 0 ? (member.total * realIncome) / sumHoursSquared : 0;
-            projectRatesMap.push({
-              projectName: proj.projectName,
-              devName: member.name,
-              hours: member.total,
-              effectiveRate: rate,
-              generatedRevenue: member.total * rate
-            });
-          }
-        });
-      }
+  billedRevenueData.forEach(billedProj => {
+    const projectRate = billedProj.monthlyRate[monthIdx] || 0;
+    const billedHours = billedProj.monthlyBilledHours[monthIdx] || 0;
+    const totalRevenue = projectRate * billedHours;
+
+    if (totalRevenue === 0 && billedHours === 0) return;
+
+    // Apply project filter (match by base name)
+    const billedBase = billedProj.name.split('(')[0].trim();
+    if (tableProject !== 'All' && tableProject !== billedBase && tableProject !== billedProj.name) {
+      return;
+    }
+
+    // Find matching time tracking data for this month
+    const hoursData = monthlyProjectHours[monthIdx] || [];
+    const matchedHoursProj = hoursData.find((p: any) => {
+      const hoursName = p.projectName.toLowerCase().trim();
+      const billedName = billedProj.name.toLowerCase().trim();
+      const billedBaseLower = billedBase.toLowerCase();
+      return hoursName === billedBaseLower ||
+             hoursName === billedName ||
+             billedName.startsWith(hoursName) ||
+             hoursName.startsWith(billedBaseLower);
     });
-  }
-  
-  // Sort by project name then by generated revenue descending
+
+    // Total logged hours across all devs on this project
+    const totalLoggedHours = matchedHoursProj
+      ? matchedHoursProj.members.reduce((sum: number, m: any) => sum + m.total, 0)
+      : 0;
+
+    // 1. Total Project Revenue
+    // (calculated above as totalRevenue = projectRate * billedHours)
+
+    // 2. Base Team Rate (Average cost of 1 project hour across all devs)
+    const baseTeamRate = totalLoggedHours > 0 ? totalRevenue / totalLoggedHours : 0;
+
+    if (matchedHoursProj && matchedHoursProj.members.length > 0) {
+      matchedHoursProj.members.forEach((member: any) => {
+        if (member.total > 0) {
+          // 3. Developer Share %
+          const memberShare = member.total / totalLoggedHours;
+          
+          // 4. Effective Rate = Base Team Rate * Developer Share %
+          const effectiveRate = baseTeamRate * memberShare;
+
+          projectRatesMap.push({
+            projectName: billedProj.name,
+            devName: member.name,
+            loggedHours: member.total,
+            billedHours: billedHours,
+            projectRate: projectRate,
+            effectiveRate: effectiveRate,
+            generatedRevenue: memberShare * totalRevenue,
+            totalRevenue: totalRevenue,
+          });
+        }
+      });
+    } else {
+      // No time tracking data — show project with no devs
+      projectRatesMap.push({
+        projectName: billedProj.name,
+        devName: '—',
+        loggedHours: 0,
+        billedHours: billedHours,
+        projectRate: projectRate,
+        effectiveRate: 0,
+        generatedRevenue: 0,
+        totalRevenue: totalRevenue,
+      });
+    }
+  });
+
+  // Sort by generated revenue descending
   projectRatesMap.sort((a, b) => {
     if (a.projectName !== b.projectName) {
       return a.projectName.localeCompare(b.projectName);
@@ -201,7 +243,7 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {} }: 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold">Project Effective Rates</h2>
-            <p className="text-sm text-muted-foreground mt-1">Effective rate based on {tableMonthName} hours against {tablePerfMonthName} revenue</p>
+            <p className="text-sm text-muted-foreground mt-1">Revenue = Project Rate × Billed Hours for {tableMonthName}</p>
           </div>
           <div className="flex flex-col md:flex-row items-center gap-4">
             <select
@@ -225,31 +267,35 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {} }: 
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-gray-50 border-b border-border">
-                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Project Name</th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Developer</th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Logged Hours</th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Effective Rate</th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Generated Rev.</th>
+                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Project</th>
+                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Developer</th>
+                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Billed Hrs</th>
+                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Logged Hrs</th>
+                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Project Rate</th>
+                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Effective Rate</th>
+                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Generated Rev.</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {projectRatesMap.length > 0 ? (
                   projectRatesMap.map((row, idx) => (
                     <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-6 py-4 font-semibold text-sm">{row.projectName}</td>
-                      <td className="px-6 py-4 text-sm text-muted-foreground">{row.devName}</td>
-                      <td className="px-6 py-4 text-sm font-semibold">{Math.round(row.hours * 10) / 10}h</td>
-                      <td className="px-6 py-4 text-sm text-primary font-bold">
+                      <td className="px-4 py-4 font-semibold text-sm">{row.projectName}</td>
+                      <td className="px-4 py-4 text-sm text-muted-foreground">{row.devName}</td>
+                      <td className="px-4 py-4 text-sm text-muted-foreground">{row.billedHours}h</td>
+                      <td className="px-4 py-4 text-sm font-semibold">{Math.round(row.loggedHours * 10) / 10}h</td>
+                      <td className="px-4 py-4 text-sm font-medium">${row.projectRate}/hr</td>
+                      <td className="px-4 py-4 text-sm text-primary font-bold">
                         ${row.effectiveRate.toFixed(2)}/hr
                       </td>
-                      <td className="px-6 py-4 text-sm font-bold text-success">
+                      <td className="px-4 py-4 text-sm font-bold text-success">
                         ${Math.round(row.generatedRevenue).toLocaleString()}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">No data found for the selected filters</td>
+                    <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">No data for the selected filters (rate data available for Feb–Apr only)</td>
                   </tr>
                 )}
               </tbody>

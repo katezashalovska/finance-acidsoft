@@ -1,4 +1,4 @@
-import { fetchSheetData, transformTeamData, transformProjectData, transformTimeTrackingData } from "@/lib/google-sheets";
+import { fetchSheetData, transformTeamData, transformProjectData, transformTimeTrackingData, transformBilledRevenueData } from "@/lib/google-sheets";
 import { TeamView } from "@/components/team/TeamView";
 
 export const revalidate = 60;
@@ -9,6 +9,10 @@ export default async function TeamPage() {
   
   const paymentRows = await fetchSheetData("204297728");
   const projectsData = transformProjectData(paymentRows);
+
+  // Fetch billed revenue data (rate × billed hours) from GID 1105487373
+  const billedRows = await fetchSheetData("1105487373");
+  const billedRevenueData = transformBilledRevenueData(billedRows);
   
   const gids: Record<number, string> = {
     4: "1130786620", // Sep
@@ -34,5 +38,5 @@ export default async function TeamPage() {
     monthlyProjectHours[m.monthIdx] = m.projectHours;
   });
 
-  return <TeamView team={team} projectsData={projectsData} monthlyProjectHours={monthlyProjectHours} />;
+  return <TeamView team={team} projectsData={projectsData} monthlyProjectHours={monthlyProjectHours} billedRevenueData={billedRevenueData} />;
 }

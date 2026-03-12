@@ -251,3 +251,57 @@ export function transformTimeTrackingData(rows: any[]) {
     };
   }).filter(p => p.totalHours > 0);
 }
+
+/**
+ * Transform billed revenue data from "Фінансова модель" sheet (GID 1105487373).
+ * 
+ * Sheet structure (pairs of columns per month):
+ *   col_0: Project name
+ *   col_1: Rate for Feb 2026, col_2: Billed hours for Feb 2026
+ *   col_3: Rate for Mar 2026, col_4: Billed hours for Mar 2026
+ *   col_5: Rate for Apr 2026, col_6: Billed hours for Apr 2026
+ *   col_7: Rate for May 2026, col_8: Billed hours for May 2026
+ *   col_9: Rate for Jun 2026, col_10: Billed hours for Jun 2026
+ * 
+ * Month index mapping (May=0 ... Apr=11):
+ *   Feb=9, Mar=10, Apr=11
+ * 
+ * Returns: { name, monthlyRate, monthlyBilledHours, monthlyBilledRevenue }[]
+ */
+export function transformBilledRevenueData(rows: any[]) {
+  // Skip header rows: "Посада", "Project", "Total"
+  const projectRows = rows.filter(r =>
+    r["col_0"] &&
+    r["col_0"] !== "Посада" &&
+    r["col_0"] !== "Project" &&
+    r["col_0"] !== "Total"
+  );
+
+  // Month-to-column mapping: [monthIndex, rateCol, hoursCol]
+  const monthColMap: Array<{ monthIdx: number; rateCol: string; hoursCol: string }> = [
+    { monthIdx: 9,  rateCol: "col_1", hoursCol: "col_2" },  // Feb
+    { monthIdx: 10, rateCol: "col_3", hoursCol: "col_4" },  // Mar
+    { monthIdx: 11, rateCol: "col_5", hoursCol: "col_6" },  // Apr
+  ];
+
+  return projectRows.map(r => {
+    const monthlyRate = new Array(12).fill(0);
+    const monthlyBilledHours = new Array(12).fill(0);
+    const monthlyBilledRevenue = new Array(12).fill(0);
+
+    monthColMap.forEach(({ monthIdx, rateCol, hoursCol }) => {
+      const rate = parseFloat(r[rateCol]) || 0;
+      const hours = parseFloat(r[hoursCol]) || 0;
+      monthlyRate[monthIdx] = rate;
+      monthlyBilledHours[monthIdx] = hours;
+      monthlyBilledRevenue[monthIdx] = rate * hours;
+    });
+
+    return {
+      name: r["col_0"],
+      monthlyRate,
+      monthlyBilledHours,
+      monthlyBilledRevenue,
+    };
+  });
+}
