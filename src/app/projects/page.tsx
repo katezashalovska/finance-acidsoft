@@ -24,25 +24,34 @@ export default async function ProjectsPage({ searchParams }: { searchParams: { m
     10: "387891592",  // Mar 2026
   };
 
-  // Determine which month to fetch (Default to Mar 2026 index 10)
+  // Determine which month to fetch
   const selectedMonthStr = searchParams.month;
   const isLifetime = selectedMonthStr === 'lifetime';
   const selectedMonth = isLifetime ? 'lifetime' : (selectedMonthStr ? parseInt(selectedMonthStr) : 10); 
 
+  // We need all months data every time to build the line chart
+  const allGids = Object.entries(gids);
+  const allMonthsHoursRaw = await Promise.all(
+    allGids.map(([monthIdx, gid]) => 
+      fetchSheetData(gid, "1naDmgdozaXJbsqMHSkA-sDtfUaoUFUIARna4hoB7nKA").then(rows => ({
+        monthIdx: parseInt(monthIdx),
+        projectHours: transformTimeTrackingData(rows)
+      }))
+    )
+  );
+
+  const monthlyProjectHours: Record<number, any[]> = {};
+  allMonthsHoursRaw.forEach(m => {
+    monthlyProjectHours[m.monthIdx] = m.projectHours;
+  });
+
   let projectHours: any[] = [];
 
   if (isLifetime) {
-    const allGids = Object.values(gids);
-    const allMonthsHours = await Promise.all(
-      allGids.map(g => fetchSheetData(g, "1naDmgdozaXJbsqMHSkA-sDtfUaoUFUIARna4hoB7nKA"))
-    );
-    
-    // Merge projectHours
     const mergedProjects = new Map<string, any>();
     
-    for (const rows of allMonthsHours) {
-        const monthHours = transformTimeTrackingData(rows);
-        for (const proj of monthHours) {
+    for (const monthData of allMonthsHoursRaw) {
+        for (const proj of monthData.projectHours) {
             if (!mergedProjects.has(proj.projectName)) {
                 mergedProjects.set(proj.projectName, {
                     projectName: proj.projectName,
@@ -68,9 +77,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: { m
     }
     projectHours = Array.from(mergedProjects.values());
   } else {
-    const gid = gids[selectedMonth as number] || "387891592"; // Fallback to March 2026
-    const hourRows = await fetchSheetData(gid, "1naDmgdozaXJbsqMHSkA-sDtfUaoUFUIARna4hoB7nKA");
-    projectHours = transformTimeTrackingData(hourRows);
+    projectHours = monthlyProjectHours[selectedMonth as number] || [];
   }
 
   return (
@@ -79,6 +86,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: { m
       projectHours={projectHours} 
       payments={payments}
       initialMonthIndex={selectedMonth}
+      monthlyProjectHours={monthlyProjectHours}
     />
   );
 }

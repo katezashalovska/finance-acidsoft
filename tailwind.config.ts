@@ -1,5 +1,7 @@
 import type { Config } from 'tailwindcss'
 
+// Triggering recompilation'
+
 const config: Config = {
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',

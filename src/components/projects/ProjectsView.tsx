@@ -8,15 +8,17 @@ import { DateFilter } from "@/components/ui/DateFilter";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { ArrowUpDown } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface ProjectsViewProps {
   rates: any[];
   projectHours: any[];
   payments: any[];
   initialMonthIndex: number | 'lifetime';
+  monthlyProjectHours: Record<number, any[]>;
 }
 
-export function ProjectsView({ rates, projectHours, payments, initialMonthIndex }: ProjectsViewProps) {
+export function ProjectsView({ rates, projectHours, payments, initialMonthIndex, monthlyProjectHours }: ProjectsViewProps) {
   const router = useRouter();
   
   useEffect(() => {
@@ -118,6 +120,54 @@ export function ProjectsView({ rates, projectHours, payments, initialMonthIndex 
     { title: "Total Hours", value: `${Math.round(totalHours)}h`, icon: Clock },
   ];
 
+  const [selectedProject, setSelectedProject] = useState<string>("All");
+
+  const chartData = [];
+  const startMonth = 4; // Sep
+  const endMonth = 10;  // Mar
+  
+  for (let i = startMonth; i <= endMonth; i++) {
+    const monthName = months[i];
+    let maxCost = 0;
+    let estCost = 0;
+    let realReceipt = 0;
+
+    const hourDataForMonth = monthlyProjectHours[i] || [];
+
+    if (selectedProject === "All") {
+      hourDataForMonth.forEach(hd => {
+         const normName = normalize(hd.projectName);
+         const rateItem = rates.find(r => normalize(r.name) === normName);
+         const rate = rateItem ? rateItem.rate : 0;
+         const maxMemHours = hd.members?.length > 0 ? Math.max(...hd.members.map((m: any) => m.total)) : 0;
+         estCost += maxMemHours * rate;
+         maxCost += hd.members?.reduce((sum: number, m: any) => sum + (m.total * getMemberRate(m.name)), 0) || 0;
+      });
+      realReceipt = payments.reduce((sum, p) => sum + (p.realMonthly[i] || 0), 0);
+    } else {
+      const hd = hourDataForMonth.find(h => h.projectName === selectedProject);
+      if (hd) {
+         const normName = normalize(hd.projectName);
+         const rateItem = rates.find(r => normalize(r.name) === normName);
+         const rate = rateItem ? rateItem.rate : 0;
+         const maxMemHours = hd.members?.length > 0 ? Math.max(...hd.members.map((m: any) => m.total)) : 0;
+         estCost = maxMemHours * rate;
+         maxCost = hd.members?.reduce((sum: number, m: any) => sum + (m.total * getMemberRate(m.name)), 0) || 0;
+      }
+      const paymentItem = payments.find(p => p.name === selectedProject);
+      if (paymentItem) {
+        realReceipt = paymentItem.realMonthly[i] || 0;
+      }
+    }
+
+    chartData.push({
+      name: monthName,
+      "Max Possible Cost": Math.round(maxCost),
+      "Estimated Cost": Math.round(estCost),
+      "Real Receipt": Math.round(realReceipt),
+    });
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -132,6 +182,51 @@ export function ProjectsView({ rates, projectHours, payments, initialMonthIndex 
         {stats.map((stat) => (
           <StatsCard key={stat.title} {...stat} />
         ))}
+      </div>
+
+      <div className="card-premium overflow-hidden p-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+          <h2 className="text-xl font-bold">Cost Analysis Chart</h2>
+          <select 
+            value={selectedProject} 
+            onChange={e => setSelectedProject(e.target.value)}
+            className="px-4 py-2 bg-white border border-border rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-sm"
+          >
+            <option value="All">All Projects</option>
+            {projectSummary.map(p => (
+              <option key={p.name} value={p.name}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="h-96 w-full mt-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+              <XAxis 
+                dataKey="name" 
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: '#6B7280', fontSize: 12 }}
+                dy={10}
+              />
+              <YAxis 
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: '#6B7280', fontSize: 12 }}
+                tickFormatter={(value) => `$${value}`}
+              />
+              <Tooltip 
+                cursor={{ stroke: '#E5E7EB', strokeWidth: 2, strokeDasharray: '3 3' }}
+                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                formatter={(value: any) => [`$${value}`, undefined]}
+              />
+              <Legend wrapperStyle={{ paddingTop: '20px' }} />
+              <Line type="monotone" dataKey="Max Possible Cost" stroke="#D97706" strokeWidth={3} activeDot={{ r: 6 }} />
+              <Line type="monotone" dataKey="Estimated Cost" stroke="#0EA5E9" strokeWidth={3} activeDot={{ r: 6 }} />
+              <Line type="monotone" dataKey="Real Receipt" stroke="#10B981" strokeWidth={3} activeDot={{ r: 6 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       <div className="card-premium overflow-hidden">
