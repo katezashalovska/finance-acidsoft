@@ -66,7 +66,7 @@ export function RevenueView({ projects }: RevenueViewProps) {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Revenue Analysis</h1>
-          <p className="text-muted-foreground mt-1">Project performance for {performanceMonthName} 2025-26</p>
+          <p className="text-muted-foreground mt-1">Project performance for {currentMonthName} 2025-26 (showing projections for {performanceMonthName})</p>
         </div>
         <DateFilter 
           selectedMonth={selectedMonthIndex} 
@@ -81,7 +81,7 @@ export function RevenueView({ projects }: RevenueViewProps) {
       </div>
 
       <div className="card-premium p-6">
-        <h3 className="text-lg font-bold mb-6">Planned vs Real by Project ({performanceMonthName})</h3>
+        <h3 className="text-lg font-bold mb-6">Planned vs Real by Project ({currentMonthName})</h3>
         <div className="h-[400px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={displayData}>
