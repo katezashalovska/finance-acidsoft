@@ -56,8 +56,26 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {} }: 
     return "Intern";
   };
 
-  // Unique projects for filter
-  const uniqueProjects = Array.from(new Set(projectsData.map(p => p.name))).sort() as string[];
+  // Fuzzy match: payment names like "SOLOAPP (Max)" should match hours name "SOLOAPP"
+  const findProjectData = (hoursProjectName: string) => {
+    const normalizedName = hoursProjectName.toLowerCase().trim();
+    return projectsData.find(p => {
+      const paymentName = p.name.toLowerCase().trim();
+      // Extract base name before parentheses from payment name
+      const paymentBase = paymentName.split('(')[0].trim();
+      return paymentBase === normalizedName || 
+             paymentName === normalizedName ||
+             paymentName.startsWith(normalizedName) ||
+             normalizedName.startsWith(paymentBase);
+    });
+  };
+
+  // Unique projects for filter (from hours data, which is what the table shows)
+  const allHoursProjects = new Set<string>();
+  Object.values(monthlyProjectHours).forEach((hoursArr: any[]) => {
+    hoursArr.forEach(p => allHoursProjects.add(p.projectName));
+  });
+  const uniqueProjects = Array.from(allHoursProjects).sort();
 
   // Calculate project effective rates for the selected table month
   const projectRatesMap: any[] = [];
@@ -74,7 +92,7 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {} }: 
         return;
       }
 
-      const pData = projectsData.find(p => p.name === proj.projectName);
+      const pData = findProjectData(proj.projectName);
       const realIncome = pData ? (pData.realMonthly[tablePerfMonth] || 0) : 0;
       const totalProjHours = proj.totalHours || 0;
       const effectiveRate = totalProjHours > 0 ? realIncome / totalProjHours : 0;
