@@ -26,6 +26,8 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {} }: 
   };
 
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(getDefaultMonthIndex());
+  const [tableMonthIndex, setTableMonthIndex] = useState(getDefaultMonthIndex());
+  const [tableProject, setTableProject] = useState('All');
   
   const months = ["May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr"];
   const currentMonthName = months[selectedMonthIndex];
@@ -54,14 +56,26 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {} }: 
     return "Intern";
   };
 
-  // Calculate project effective rates for the selected month
+  // Unique projects for filter
+  const uniqueProjects = Array.from(new Set(projectsData.map(p => p.name))).sort() as string[];
+
+  // Calculate project effective rates for the selected table month
   const projectRatesMap: any[] = [];
-  if (monthlyProjectHours[selectedMonthIndex]) {
-    const hoursData = monthlyProjectHours[selectedMonthIndex] || [];
+  const tablePerfMonth = (tableMonthIndex as number) + 1;
+  const tableMonthName = months[tableMonthIndex as number] || "N/A";
+  const tablePerfMonthName = months[tablePerfMonth] || "Next Month";
+
+  if (monthlyProjectHours[tableMonthIndex as number]) {
+    const hoursData = monthlyProjectHours[tableMonthIndex as number] || [];
     
     hoursData.forEach(proj => {
+      // Apply project filter
+      if (tableProject !== 'All' && proj.projectName !== tableProject) {
+        return;
+      }
+
       const pData = projectsData.find(p => p.name === proj.projectName);
-      const realIncome = pData ? (pData.realMonthly[performanceMonthIndex] || 0) : 0;
+      const realIncome = pData ? (pData.realMonthly[tablePerfMonth] || 0) : 0;
       const totalProjHours = proj.totalHours || 0;
       const effectiveRate = totalProjHours > 0 ? realIncome / totalProjHours : 0;
       
@@ -160,26 +174,44 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {} }: 
         </div>
       </div>
 
-      {projectRatesMap.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
+      <div className="space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
             <h2 className="text-xl font-bold">Project Effective Rates</h2>
-            <Badge variant="info">Calculated for {currentMonthName} against {performanceMonthName} Revenue</Badge>
+            <p className="text-sm text-muted-foreground mt-1">Calculated for {tableMonthName} against {tablePerfMonthName} Revenue</p>
           </div>
-          <div className="card-premium overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-border">
-                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Project Name</th>
-                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Developer</th>
-                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Logged Hours</th>
-                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Effective Rate</th>
-                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Generated Rev.</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {projectRatesMap.map((row, idx) => (
+          <div className="flex flex-col md:flex-row items-center gap-4">
+            <select
+              value={tableProject}
+              onChange={(e) => setTableProject(e.target.value)}
+              className="h-10 px-3 py-2 rounded-xl border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+            >
+              <option value="All">All Projects</option>
+              {uniqueProjects.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+            <DateFilter 
+              selectedMonth={tableMonthIndex} 
+              onMonthChange={setTableMonthIndex} 
+            />
+          </div>
+        </div>
+        <div className="card-premium overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-50 border-b border-border">
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Project Name</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Developer</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Logged Hours</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Effective Rate</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Generated Rev.</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {projectRatesMap.length > 0 ? (
+                  projectRatesMap.map((row, idx) => (
                     <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-6 py-4 font-semibold text-sm">{row.projectName}</td>
                       <td className="px-6 py-4 text-sm text-muted-foreground">{row.devName}</td>
@@ -191,13 +223,17 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {} }: 
                         ${Math.round(row.generatedRevenue).toLocaleString()}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">No data found for the selected filters</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
