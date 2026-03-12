@@ -96,18 +96,21 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {} }: 
       // Use the planned revenue for the hours month, or real current month payment
       const monthIdx = tableMonthIndex as number;
       const realIncome = pData ? (pData.realCurrentMonthly[monthIdx] || pData.plannedMonthly[monthIdx] || 0) : 0;
-      const totalProjHours = proj.totalHours || 0;
-      const effectiveRate = totalProjHours > 0 ? realIncome / totalProjHours : 0;
       
       if (proj.members) {
+        // Proportional rate: rate_i = (hours_i * revenue) / sum(hours_j^2)
+        // This ensures rate ratio = hours ratio (e.g. 20h vs 10h → rate 2:1)
+        const sumHoursSquared = proj.members.reduce((sum: number, m: any) => sum + (m.total * m.total), 0);
+        
         proj.members.forEach((member: any) => {
           if (member.total > 0) {
+            const rate = sumHoursSquared > 0 ? (member.total * realIncome) / sumHoursSquared : 0;
             projectRatesMap.push({
               projectName: proj.projectName,
               devName: member.name,
               hours: member.total,
-              effectiveRate: effectiveRate,
-              generatedRevenue: member.total * effectiveRate
+              effectiveRate: rate,
+              generatedRevenue: member.total * rate
             });
           }
         });
