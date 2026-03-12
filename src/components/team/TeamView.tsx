@@ -93,9 +93,9 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {} }: 
       }
 
       const pData = findProjectData(proj.projectName);
-      // Use next month's revenue (e.g. for March hours → April revenue)
+      // Use next month's REAL revenue only (e.g. for March hours → April real payment)
       const nextMonthIdx = (tableMonthIndex as number) + 1;
-      const realIncome = pData ? (pData.realCurrentMonthly[nextMonthIdx] || pData.plannedMonthly[nextMonthIdx] || 0) : 0;
+      const realIncome = pData ? (pData.realCurrentMonthly[nextMonthIdx] || 0) : 0;
       
       if (proj.members) {
         // Proportional rate: rate_i = (hours_i * revenue) / sum(hours_j^2)
