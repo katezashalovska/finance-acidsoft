@@ -10,9 +10,11 @@ import { useState } from "react";
 
 interface TeamViewProps {
   team: any[];
+  projectsData?: any[];
+  monthlyProjectHours?: Record<number, any[]>;
 }
 
-export function TeamView({ team }: TeamViewProps) {
+export function TeamView({ team, projectsData = [], monthlyProjectHours = {} }: TeamViewProps) {
   const getDefaultMonthIndex = () => {
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -27,6 +29,8 @@ export function TeamView({ team }: TeamViewProps) {
   
   const months = ["May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr"];
   const currentMonthName = months[selectedMonthIndex];
+  const performanceMonthIndex = selectedMonthIndex + 1;
+  const performanceMonthName = months[performanceMonthIndex] || "Next Month";
 
   // Filter members: include if salary is a number (including 0), exclude if null
   const activeMembers = team.filter(member => {
@@ -49,6 +53,41 @@ export function TeamView({ team }: TeamViewProps) {
     if (salary >= 300) return "C";
     return "Intern";
   };
+
+  // Calculate project effective rates for the selected month
+  const projectRatesMap: any[] = [];
+  if (monthlyProjectHours[selectedMonthIndex]) {
+    const hoursData = monthlyProjectHours[selectedMonthIndex] || [];
+    
+    hoursData.forEach(proj => {
+      const pData = projectsData.find(p => p.name === proj.projectName);
+      const realIncome = pData ? (pData.realMonthly[performanceMonthIndex] || 0) : 0;
+      const totalProjHours = proj.totalHours || 0;
+      const effectiveRate = totalProjHours > 0 ? realIncome / totalProjHours : 0;
+      
+      if (proj.members) {
+        proj.members.forEach((member: any) => {
+          if (member.total > 0) {
+            projectRatesMap.push({
+              projectName: proj.projectName,
+              devName: member.name,
+              hours: member.total,
+              effectiveRate: effectiveRate,
+              generatedRevenue: member.total * effectiveRate
+            });
+          }
+        });
+      }
+    });
+  }
+  
+  // Sort by project name then by generated revenue descending
+  projectRatesMap.sort((a, b) => {
+    if (a.projectName !== b.projectName) {
+      return a.projectName.localeCompare(b.projectName);
+    }
+    return b.generatedRevenue - a.generatedRevenue;
+  });
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -120,6 +159,45 @@ export function TeamView({ team }: TeamViewProps) {
           </div>
         </div>
       </div>
+
+      {projectRatesMap.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold">Project Effective Rates</h2>
+            <Badge variant="info">Calculated for {currentMonthName} against {performanceMonthName} Revenue</Badge>
+          </div>
+          <div className="card-premium overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-border">
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Project Name</th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Developer</th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Logged Hours</th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Effective Rate</th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Generated Rev.</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {projectRatesMap.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-6 py-4 font-semibold text-sm">{row.projectName}</td>
+                      <td className="px-6 py-4 text-sm text-muted-foreground">{row.devName}</td>
+                      <td className="px-6 py-4 text-sm font-semibold">{Math.round(row.hours * 10) / 10}h</td>
+                      <td className="px-6 py-4 text-sm text-primary font-bold">
+                        ${row.effectiveRate.toFixed(2)}/hr
+                      </td>
+                      <td className="px-6 py-4 text-sm font-bold text-success">
+                        ${Math.round(row.generatedRevenue).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
