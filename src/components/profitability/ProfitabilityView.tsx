@@ -36,7 +36,8 @@ export function ProfitabilityView({ data }: ProfitabilityViewProps) {
   const [selectedMonthIndex, setSelectedMonthIndex] = useState<number | 'lifetime'>(getDefaultMonthIndex());
   
   const months = ["May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr"];
-  const currentMonthName = selectedMonthIndex === 'lifetime' ? 'Lifetime' : months[selectedMonthIndex];
+  const displayMonthIndex = selectedMonthIndex === 'lifetime' ? 'lifetime' : (selectedMonthIndex as number) + 1;
+  const currentMonthName = selectedMonthIndex === 'lifetime' ? 'Lifetime' : (months[displayMonthIndex as number] || "Next Month");
 
   // Prepare data for charts (always show full year trend)
   const chartData = data.map(item => {
@@ -67,7 +68,7 @@ export function ProfitabilityView({ data }: ProfitabilityViewProps) {
       netMargin: totalRev > 0 ? (totalNet / totalRev) * 100 : 0
     };
   } else {
-    const m = data[selectedMonthIndex] || {};
+    const m = data[displayMonthIndex as number] || {};
     const rev = m.Revenue || 0;
     const gross = m.GrossProfit || 0;
     const net = m["Net Profit"] || 0;

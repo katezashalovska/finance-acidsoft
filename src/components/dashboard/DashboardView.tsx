@@ -39,9 +39,11 @@ export function DashboardView({ data, projects, team }: DashboardViewProps) {
 
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(getDefaultMonthIndex());
   
-  // Stats for the selected month
-  const currentMonthData = data[selectedMonthIndex] || {};
-  const prevMonthData = data[selectedMonthIndex - 1] || {};
+  const displayMonthIndex = selectedMonthIndex + 1;
+  
+  // Stats for the selected month (offset by + 1)
+  const currentMonthData = data[displayMonthIndex] || {};
+  const prevMonthData = data[displayMonthIndex - 1] || {};
 
   const calculateTrend = (current: number, prev: number) => {
     if (!prev) return { value: 0, isPositive: true };
@@ -59,8 +61,7 @@ export function DashboardView({ data, projects, team }: DashboardViewProps) {
     setSortConfig({ key, direction });
   };
 
-  const performanceMonthIndex = selectedMonthIndex + 1;
-  const performanceMonthName = data[performanceMonthIndex]?.Month || "Next Month";
+  const performanceMonthName = data[displayMonthIndex]?.Month || "Next Month";
 
   const sortedProjects = [...projects].sort((a, b) => {
     if (sortConfig) {
@@ -73,11 +74,11 @@ export function DashboardView({ data, projects, team }: DashboardViewProps) {
         aVal = a.name;
         bVal = b.name;
       } else if (key === 'planned') {
-        aVal = a.plannedMonthly[performanceMonthIndex] || 0;
-        bVal = b.plannedMonthly[performanceMonthIndex] || 0;
+        aVal = a.plannedMonthly[displayMonthIndex] || 0;
+        bVal = b.plannedMonthly[displayMonthIndex] || 0;
       } else if (key === 'real') {
-        aVal = a.realMonthly[performanceMonthIndex] || 0;
-        bVal = b.realMonthly[performanceMonthIndex] || 0;
+        aVal = a.realMonthly[displayMonthIndex] || 0;
+        bVal = b.realMonthly[displayMonthIndex] || 0;
       } else {
         aVal = 0; bVal = 0;
       }
@@ -88,10 +89,10 @@ export function DashboardView({ data, projects, team }: DashboardViewProps) {
     }
 
     // Default sorting: active this month first
-    const aPlanned = a.plannedMonthly[performanceMonthIndex] || 0;
-    const aReal = a.realMonthly[performanceMonthIndex] || 0;
-    const bPlanned = b.plannedMonthly[performanceMonthIndex] || 0;
-    const bReal = b.realMonthly[performanceMonthIndex] || 0;
+    const aPlanned = a.plannedMonthly[displayMonthIndex] || 0;
+    const aReal = a.realMonthly[displayMonthIndex] || 0;
+    const bPlanned = b.plannedMonthly[displayMonthIndex] || 0;
+    const bReal = b.realMonthly[displayMonthIndex] || 0;
 
     const aActive = aPlanned > 0 || aReal > 0;
     const bActive = bPlanned > 0 || bReal > 0;
@@ -103,11 +104,11 @@ export function DashboardView({ data, projects, team }: DashboardViewProps) {
     return (b.ltv || 0) - (a.ltv || 0);
   });
 
-  const activeCount = projects.filter(p => (p.plannedMonthly[performanceMonthIndex] || 0) > 0).length;
+  const activeCount = projects.filter(p => (p.plannedMonthly[displayMonthIndex] || 0) > 0).length;
   
   // Team members active in the selected month
   const activeTeamMembers = team.filter(m => {
-    const salary = m.monthlySalaries[selectedMonthIndex];
+    const salary = m.monthlySalaries[displayMonthIndex];
     return typeof salary === 'number' || m.name.toLowerCase().includes("ceo");
   });
 
@@ -246,15 +247,15 @@ export function DashboardView({ data, projects, team }: DashboardViewProps) {
             </thead>
             <tbody className="divide-y divide-border">
               {sortedProjects.map((project, idx) => {
-                const isInactive = (project.plannedMonthly[performanceMonthIndex] || 0) === 0 && (project.realMonthly[performanceMonthIndex] || 0) === 0;
+                const isInactive = (project.plannedMonthly[displayMonthIndex] || 0) === 0 && (project.realMonthly[displayMonthIndex] || 0) === 0;
                 return (
                   <tr key={idx} className={cn("hover:bg-gray-50 transition-colors", isInactive && "opacity-60 grayscale-[0.5]")}>
                     <td className="px-6 py-4 font-semibold text-sm">
                       {project.name}
                       {isInactive && <span className="ml-2 text-[10px] uppercase font-normal text-muted-foreground tracking-tighter">(Inactive in {performanceMonthName})</span>}
                     </td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground">${Math.round(project.plannedMonthly[performanceMonthIndex] || 0).toLocaleString()}</td>
-                    <td className="px-6 py-4 text-sm font-bold text-primary">${Math.round(project.realMonthly[performanceMonthIndex] || 0).toLocaleString()}</td>
+                    <td className="px-6 py-4 text-sm text-muted-foreground">${Math.round(project.plannedMonthly[displayMonthIndex] || 0).toLocaleString()}</td>
+                    <td className="px-6 py-4 text-sm font-bold text-primary">${Math.round(project.realMonthly[displayMonthIndex] || 0).toLocaleString()}</td>
                     <td className="px-6 py-4 text-sm font-bold text-success">${Math.round(project.ltv || 0).toLocaleString()}</td>
                   </tr>
                 );
