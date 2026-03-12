@@ -12,7 +12,7 @@ const months = [
 
 interface DateFilterProps {
   selectedMonth: number | 'lifetime';
-  onMonthChange: (value: number | 'lifetime') => void;
+  onMonthChange: any;
   showLifetime?: boolean;
 }
 
