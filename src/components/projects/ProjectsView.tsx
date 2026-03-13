@@ -22,14 +22,12 @@ export function ProjectsView({ rates, projectHours, payments, initialMonthIndex,
   const router = useRouter();
   
   useEffect(() => {
-    // Automatically refresh the page data every 30 seconds
     const interval = setInterval(() => {
       router.refresh();
     }, 30000);
     return () => clearInterval(interval);
   }, [router]);
   
-  // Mapping for DateFilter display
   const months = ["May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr"];
   
   const handleMonthChange = (idx: number | 'lifetime') => {
@@ -38,7 +36,6 @@ export function ProjectsView({ rates, projectHours, payments, initialMonthIndex,
 
   const normalize = (name: string) => {
     if (!name) return '';
-    // Strip everything after first bracket/paren for better matching
     const baseName = name.split('(')[0].split('[')[0].trim();
     return baseName.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
   };
@@ -58,12 +55,19 @@ export function ProjectsView({ rates, projectHours, payments, initialMonthIndex,
     if (n.includes('qa') || n.includes('vika')) return 10;
     if (n.includes('design') || n.includes('sofia') || n.includes('ksenia')) return 15;
     if (n.includes('kate') || n.includes('ceo')) return 0;
-    return 20; // Developers, PMs, default
+    return 20; 
   };
 
-  const projectSummary = projectHours.map(hoursData => {
-    const normName = normalize(hoursData.projectName);
+  const allProjectNames = new Set<string>();
+  payments.forEach(p => allProjectNames.add(p.name));
+  projectHours.forEach(h => allProjectNames.add(h.projectName));
 
+  const projectSummary = Array.from(allProjectNames).map(projectName => {
+    const normName = normalize(projectName);
+
+    // Find hours data
+    const hoursData = projectHours.find(h => normalize(h.projectName) === normName);
+    
     // Find rate
     const rateItem = rates.find(r => normalize(r.name) === normName);
     const rate = rateItem ? rateItem.rate : 0;
@@ -77,23 +81,27 @@ export function ProjectsView({ rates, projectHours, payments, initialMonthIndex,
       : 0;
 
     // "Estimated cost" = max member hours * project billed rate
-    const maxMemberHours = hoursData.members?.length > 0 
+    const maxMemberHours = hoursData?.members?.length > 0 
       ? Math.max(...hoursData.members.map((m: any) => m.total)) 
       : 0;
     const estimatedCost = maxMemberHours * rate;
 
     // "Max possible cost" = sum of member.total * individual rate
-    const maxPossibleCost = hoursData.members?.reduce((sum: number, m: any) => sum + (m.total * getMemberRate(m.name)), 0) || 0;
+    const maxPossibleCost = hoursData?.members?.reduce((sum: number, m: any) => sum + (m.total * getMemberRate(m.name)), 0) || 0;
+
+    // Status: Inactive if NO activity (hours and payment) in selected month
+    const hasActivity = (hoursData?.totalHours > 0) || (realPayment > 0);
+    const calculatedStatus = hasActivity ? (rateItem?.status || "Active") : "Inactive";
 
     return {
-      name: hoursData.projectName,
+      name: projectName,
       rate,
-      members: hoursData.members || [],
-      totalHours: hoursData.totalHours,
+      members: hoursData?.members || [],
+      totalHours: hoursData?.totalHours || 0,
       estimatedCost,
       maxPossibleCost,
       realPayment,
-      status: rateItem?.status || "Unknown"
+      status: calculatedStatus
     };
   }).sort((a, b) => {
     if (sortConfig) {
@@ -104,6 +112,13 @@ export function ProjectsView({ rates, projectHours, payments, initialMonthIndex,
       if (aVal < bVal) return direction === 'asc' ? -1 : 1;
       if (aVal > bVal) return direction === 'asc' ? 1 : -1;
       return 0;
+    }
+
+    // Default sort: Active first, then by estimatedCost descending
+    const isAInactive = a.status === 'Inactive';
+    const isBInactive = b.status === 'Inactive';
+    if (isAInactive !== isBInactive) {
+      return isAInactive ? 1 : -1;
     }
     return b.estimatedCost - a.estimatedCost;
   });
@@ -240,7 +255,7 @@ export function ProjectsView({ rates, projectHours, payments, initialMonthIndex,
               <tr className="bg-gray-50 border-b border-border">
                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground w-1/4">Project Name & Members</th>
                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground text-center cursor-pointer hover:text-primary transition-colors" onClick={() => requestSort('totalHours')}>
-                  <div className="flex items-center justify-center gap-1">Total Hours <ArrowUpDown className="w-3 h-3"/></div>
+                  <div className="flex items-center justify-center gap-1">Hours <ArrowUpDown className="w-3 h-3"/></div>
                 </th>
                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground text-right cursor-pointer hover:text-primary transition-colors" onClick={() => requestSort('maxPossibleCost')}>
                   <div className="flex items-center justify-end gap-1">Max Possible Cost <ArrowUpDown className="w-3 h-3"/></div>
@@ -255,10 +270,18 @@ export function ProjectsView({ rates, projectHours, payments, initialMonthIndex,
             </thead>
             <tbody className="divide-y divide-border">
               {projectSummary.map((project, idx) => (
-                <tr key={idx} className="hover:bg-gray-50/50 transition-colors group">
+                <tr key={idx} className={cn(
+                  "hover:bg-gray-50/50 transition-colors group",
+                  project.status === 'Inactive' && "opacity-60 bg-gray-50/30"
+                )}>
                   <td className="px-6 py-4 align-top">
-                    <div className="font-semibold text-sm mb-2">{project.name}</div>
-                    <div className="text-[11px] text-muted-foreground uppercase mb-2">{project.status}</div>
+                    <div className="flex items-center gap-2">
+                       <div className="font-semibold text-sm">{project.name}</div>
+                       {project.status === 'Inactive' && <Badge variant="default" className="text-[10px] py-0 h-4 bg-gray-200 text-gray-700">Inactive</Badge>}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground uppercase mb-2">
+                      {project.status === 'Inactive' ? 'Historical / No current revenue' : project.status}
+                    </div>
                     <div className="space-y-1">
                       {project.members && project.members.map((m: any, idx2: number) => (
                         <div key={idx2} className="text-xs flex justify-between gap-4">
@@ -277,17 +300,18 @@ export function ProjectsView({ rates, projectHours, payments, initialMonthIndex,
                   </td>
                   <td className="px-6 py-4 text-right align-top">
                     <div className="text-sm font-bold text-primary mt-1">${Math.round(project.estimatedCost).toLocaleString()}</div>
-                    <div className="text-[10px] text-muted-foreground">${project.rate}/h * {Math.round(project.estimatedCost / (project.rate || 1))}h</div>
+                    <div className="text-[10px] text-muted-foreground">Estimated (Billed)</div>
                   </td>
                   <td className="px-6 py-4 text-right align-top">
                     <div className="text-sm font-extrabold text-success mt-1">${Math.round(project.realPayment).toLocaleString()}</div>
+                    <div className="text-[10px] text-muted-foreground">Real Receipt</div>
                   </td>
                 </tr>
               ))}
               {projectSummary.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
-                    No time tracking logs found for this month in the Billability sheet.
+                  <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
+                    No data found for this selection.
                   </td>
                 </tr>
               )}

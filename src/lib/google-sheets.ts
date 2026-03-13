@@ -121,6 +121,20 @@ export function transformProjectData(rows: any[]) {
   });
 }
 
+export function transformLtvData(rows: any[]) {
+  const ltvRows = rows.filter(r => 
+    r["col_0"] && 
+    r["col_0"] !== "Client" && 
+    r["col_0"] !== "Project" && 
+    r["col_4"] !== undefined
+  );
+
+  return ltvRows.map(r => ({
+    name: r["col_0"],
+    ltvValue: typeof r["col_4"] === 'number' ? r["col_4"] : (parseFloat(r["col_4"]) || 0)
+  }));
+}
+
 export function transformTeamData(rows: any[]) {
   const teamRows = rows.filter(r => 
     r["col_0"] && 
@@ -295,6 +309,11 @@ export function transformBilledRevenueData(rows: any[]) {
       monthlyRate[monthIdx] = rate;
       monthlyBilledHours[monthIdx] = hours;
       monthlyBilledRevenue[monthIdx] = rate * hours;
+      
+      if (r["col_0"] && r["col_0"].includes("Routez") && monthIdx === 9) {
+        console.log(`[DEBUG] Routez Full Row:`, r);
+        console.log(`[DEBUG] Routez month ${monthIdx}: rate=${rate}, hours=${hours}, colRate=${rateCol}, colHours=${hoursCol}`);
+      }
     });
 
     return {

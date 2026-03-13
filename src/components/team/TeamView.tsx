@@ -13,9 +13,10 @@ interface TeamViewProps {
   projectsData?: any[];
   monthlyProjectHours?: Record<number, any[]>;
   billedRevenueData?: any[];
+  ltvData?: any[];
 }
 
-export function TeamView({ team, projectsData = [], monthlyProjectHours = {}, billedRevenueData = [] }: TeamViewProps) {
+export function TeamView({ team, projectsData = [], monthlyProjectHours = {}, billedRevenueData = [], ltvData = [] }: TeamViewProps) {
   const getDefaultMonthIndex = () => {
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -29,16 +30,16 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {}, bi
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(getDefaultMonthIndex());
   const [tableMonthIndex, setTableMonthIndex] = useState(getDefaultMonthIndex());
   const [tableProject, setTableProject] = useState('All');
+  const [tableMember, setTableMember] = useState('All');
   
   const months = ["May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr"];
   const currentMonthName = months[selectedMonthIndex];
   const performanceMonthIndex = selectedMonthIndex + 1;
   const performanceMonthName = months[performanceMonthIndex] || "Next Month";
 
-  // Filter members: include if salary is a number (including 0), exclude if null
+  // Filter members: include everyone who has a name (including interns with 0 salary)
   const activeMembers = team.filter(member => {
-    const salary = member.monthlySalaries[selectedMonthIndex];
-    return typeof salary === 'number';
+    return !!member.name;
   });
   
   const totalSalaries = activeMembers.reduce((sum, member) => sum + (member.monthlySalaries[selectedMonthIndex] || 0), 0);
@@ -71,100 +72,128 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {}, bi
     });
   };
 
-  // Unique projects for filter (from hours data, which is what the table shows)
+  // Unique projects and members for filters
   const allHoursProjects = new Set<string>();
+  const allMembers = new Set<string>();
   Object.values(monthlyProjectHours).forEach((hoursArr: any[]) => {
-    hoursArr.forEach(p => allHoursProjects.add(p.projectName));
+    hoursArr.forEach(p => {
+      allHoursProjects.add(p.projectName);
+      p.members.forEach((m: any) => allMembers.add(m.name));
+    });
   });
   const uniqueProjects = Array.from(allHoursProjects).sort();
+  const uniqueMembers = Array.from(allMembers).sort();
 
-  // Calculate project effective rates:
-  // Total Revenue = Project Rate × Billed Hours (from financial model)
-  // Then distribute among developers proportionally by their logged hours
-  // Effective Rate = Total Revenue / Total Logged Hours (real cost per dev hour)
-  const projectRatesMap: any[] = [];
-  const tableMonthName = months[tableMonthIndex as number] || "N/A";
+  const normalizeName = (s: string) => {
+    const translit: Record<string, string> = {
+      'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'є': 'ye', 'ж': 'zh', 
+      'з': 'z', 'и': 'y', 'і': 'i', 'ї': 'yi', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 
+      'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 
+      'х': 'kh', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch', 'ю': 'yu', 'я': 'ya',
+      'ь': '', 'ъ': '', ' ' : ''
+    };
+    return (s || "").toLowerCase().split('').map(char => translit[char] || char).join('')
+      .replace(/th/g, 't')
+      .replace(/ii/g, 'i')
+      .replace(/ia/g, 'ya');
+  };
 
-  // Build from billedRevenueData (which has rate and billed hours per project per month)
-  const monthIdx = tableMonthIndex as number;
-
-  billedRevenueData.forEach(billedProj => {
-    const projectRate = billedProj.monthlyRate[monthIdx] || 0;
-    const billedHours = billedProj.monthlyBilledHours[monthIdx] || 0;
-    const totalRevenue = projectRate * billedHours;
-
-    if (totalRevenue === 0 && billedHours === 0) return;
-
-    // Apply project filter (match by base name)
-    const billedBase = billedProj.name.split('(')[0].trim();
-    if (tableProject !== 'All' && tableProject !== billedBase && tableProject !== billedProj.name) {
-      return;
-    }
-
-    // Find matching time tracking data for this month
+  const getProjectRatesData = (monthIdx: number) => {
+    const results: any[] = [];
     const hoursData = monthlyProjectHours[monthIdx] || [];
-    const matchedHoursProj = hoursData.find((p: any) => {
-      const hoursName = p.projectName.toLowerCase().trim();
-      const billedName = billedProj.name.toLowerCase().trim();
-      const billedBaseLower = billedBase.toLowerCase();
-      return hoursName === billedBaseLower ||
-             hoursName === billedName ||
-             billedName.startsWith(hoursName) ||
-             hoursName.startsWith(billedBaseLower);
+
+    billedRevenueData.forEach(billedProj => {
+      const projectRate = billedProj.monthlyRate[monthIdx] || 0;
+      const billedHours = billedProj.monthlyBilledHours[monthIdx] || 0;
+      const totalRevenue = projectRate * billedHours;
+
+      if (totalRevenue === 0 && billedHours === 0) return;
+
+      const billedBase = billedProj.name.split('(')[0].trim();
+      const matchedHoursProj = hoursData.find((p: any) => {
+        const hoursName = p.projectName.toLowerCase().trim();
+        const billedName = billedProj.name.toLowerCase().trim();
+        const billedBaseLower = billedBase.toLowerCase();
+        return hoursName === billedBaseLower ||
+               hoursName === billedName ||
+               billedName.startsWith(hoursName) ||
+               hoursName.startsWith(billedBaseLower);
+      });
+
+      const totalLoggedHours = matchedHoursProj
+        ? matchedHoursProj.members.reduce((sum: number, m: any) => sum + m.total, 0)
+        : 0;
+
+      const baseTeamRate = totalLoggedHours > 0 ? totalRevenue / totalLoggedHours : 0;
+
+      if (matchedHoursProj && matchedHoursProj.members.length > 0) {
+        matchedHoursProj.members.forEach((memberInHours: any) => {
+          if (memberInHours.total > 0) {
+            const memberShare = memberInHours.total / totalLoggedHours;
+            const effectiveRate = baseTeamRate * memberShare;
+            const ltvItem = ltvData.find(l => {
+              const ltvNorm = normalizeName(l.name);
+              const billedNorm = normalizeName(billedProj.name);
+              return ltvNorm === billedNorm || ltvNorm.includes(billedNorm) || billedNorm.includes(ltvNorm);
+            });
+            const ltvValue = ltvItem ? ltvItem.ltvValue : 0;
+
+            results.push({
+              projectName: billedProj.name,
+              projectNameBase: billedBase,
+              devName: memberInHours.name,
+              loggedHours: memberInHours.total,
+              billedHours: billedHours,
+              projectRate: projectRate,
+              effectiveRate: effectiveRate,
+              generatedRevenue: memberShare * totalRevenue,
+              totalRevenue: totalRevenue,
+              ltvValue: ltvValue
+            });
+          }
+        });
+      } else {
+        const ltvItem = ltvData.find(l => {
+          const ltvNorm = normalizeName(l.name);
+          const billedNorm = normalizeName(billedProj.name);
+          return ltvNorm === billedNorm || ltvNorm.includes(billedNorm) || billedNorm.includes(ltvNorm);
+        });
+        const ltvValue = ltvItem ? ltvItem.ltvValue : 0;
+
+        results.push({
+          projectName: billedProj.name,
+          projectNameBase: billedBase,
+          devName: '—',
+          loggedHours: 0,
+          billedHours: billedHours,
+          projectRate: projectRate,
+          effectiveRate: 0,
+          generatedRevenue: 0,
+          totalRevenue: totalRevenue,
+          ltvValue: ltvValue
+        });
+      }
     });
+    return results;
+  };
 
-    // Total logged hours across all devs on this project
-    const totalLoggedHours = matchedHoursProj
-      ? matchedHoursProj.members.reduce((sum: number, m: any) => sum + m.total, 0)
-      : 0;
+  // 1. Data for Active Employees table (top)
+  const currentMonthPerfData = getProjectRatesData(selectedMonthIndex);
 
-    // 1. Total Project Revenue
-    // (calculated above as totalRevenue = projectRate * billedHours)
+  // 2. Data for Project Effective Rates table (bottom)
+  const tableMonthName = months[tableMonthIndex as number] || "N/A";
+  const bottomTableRawData = getProjectRatesData(tableMonthIndex);
 
-    // 2. Base Team Rate (Average cost of 1 project hour across all devs)
-    const baseTeamRate = totalLoggedHours > 0 ? totalRevenue / totalLoggedHours : 0;
-
-    if (matchedHoursProj && matchedHoursProj.members.length > 0) {
-      matchedHoursProj.members.forEach((member: any) => {
-        if (member.total > 0) {
-          // 3. Developer Share %
-          const memberShare = member.total / totalLoggedHours;
-          
-          // 4. Effective Rate = Base Team Rate * Developer Share %
-          const effectiveRate = baseTeamRate * memberShare;
-
-          projectRatesMap.push({
-            projectName: billedProj.name,
-            devName: member.name,
-            loggedHours: member.total,
-            billedHours: billedHours,
-            projectRate: projectRate,
-            effectiveRate: effectiveRate,
-            generatedRevenue: memberShare * totalRevenue,
-            totalRevenue: totalRevenue,
-          });
-        }
-      });
-    } else {
-      // No time tracking data — show project with no devs
-      projectRatesMap.push({
-        projectName: billedProj.name,
-        devName: '—',
-        loggedHours: 0,
-        billedHours: billedHours,
-        projectRate: projectRate,
-        effectiveRate: 0,
-        generatedRevenue: 0,
-        totalRevenue: totalRevenue,
-      });
+  const projectRatesMap = bottomTableRawData.filter(row => {
+    if (tableProject !== 'All' && tableProject !== row.projectNameBase && tableProject !== row.projectName) {
+      return false;
     }
-  });
-
-  // Sort by generated revenue descending
-  projectRatesMap.sort((a, b) => {
-    if (a.projectName !== b.projectName) {
-      return a.projectName.localeCompare(b.projectName);
+    if (tableMember !== 'All' && row.devName !== tableMember) {
+      return false;
     }
+    return true;
+  }).sort((a, b) => {
+    if (a.projectName !== b.projectName) return a.projectName.localeCompare(b.projectName);
     return b.generatedRevenue - a.generatedRevenue;
   });
 
@@ -199,7 +228,8 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {}, bi
                 <tr className="bg-gray-50 border-b border-border">
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Name / Role</th>
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Salary ({currentMonthName})</th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Real Rate</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Base Rate</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground text-center">Avg Eff. Rate</th>
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Category</th>
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Status</th>
                 </tr>
@@ -207,14 +237,37 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {}, bi
               <tbody className="divide-y divide-border">
                 {activeMembers.map((member, idx) => {
                   const salary = member.monthlySalaries[selectedMonthIndex] || 0;
-                  const realRate = salary > 0 ? salary / 160 : 0;
+                  const baseRate = salary > 0 ? salary / 160 : 0;
                   const category = getCategory(salary);
+                  const currentMemberNormalized = normalizeName(member.name);
+
+                  // Find all project rows for this member in the selected month
+                  const memberProjects = currentMonthPerfData.filter(row => {
+                    const rowDevNormalized = normalizeName(row.devName);
+                    return rowDevNormalized.includes(currentMemberNormalized) || currentMemberNormalized.includes(rowDevNormalized);
+                  });
+
+                  // Calculate weighted average of effective rates based on logged hours
+                  // Formula: (Rate1 * Hours1 + Rate2 * Hours2) / (Hours1 + Hours2)
+                  const totalMemberRevenue = memberProjects.reduce((sum, p) => sum + (p.effectiveRate * p.loggedHours), 0);
+                  const totalMemberHours = memberProjects.reduce((sum, p) => sum + p.loggedHours, 0);
+
+                  const avgEffectiveRate = totalMemberHours > 0 ? totalMemberRevenue / totalMemberHours : 0;
+                  const isUnderperforming = avgEffectiveRate < baseRate;
                   
                   return (
                   <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 font-semibold text-sm">{member.name || "Unnamed"}</td>
                     <td className="px-6 py-4 text-sm text-muted-foreground">${Math.round(salary).toLocaleString()}</td>
-                    <td className="px-6 py-4 text-sm font-semibold">${realRate.toFixed(2)}/hr</td>
+                    <td className="px-6 py-4 text-sm font-medium text-muted-foreground">${baseRate.toFixed(2)}/hr</td>
+                    <td className="px-6 py-4 text-center">
+                      <div className={cn(
+                        "text-sm font-bold inline-flex items-center px-2.5 py-0.5 rounded-full",
+                        isUnderperforming ? "text-red-600 bg-red-50" : "text-success bg-success/10"
+                      )}>
+                        ${avgEffectiveRate.toFixed(2)}/hr
+                      </div>
+                    </td>
                     <td className="px-6 py-4">
                       <Badge variant="default" className="font-bold">{category}</Badge>
                     </td>
@@ -230,7 +283,7 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {}, bi
                 })}
                 {activeMembers.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">No active team members for this month</td>
+                    <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">No active team members for this month</td>
                   </tr>
                 )}
               </tbody>
@@ -256,6 +309,16 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {}, bi
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>
+            <select
+              value={tableMember}
+              onChange={(e) => setTableMember(e.target.value)}
+              className="h-10 px-3 py-2 rounded-xl border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+            >
+              <option value="All">All Employees</option>
+              {uniqueMembers.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
             <DateFilter 
               selectedMonth={tableMonthIndex} 
               onMonthChange={setTableMonthIndex} 
@@ -274,6 +337,7 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {}, bi
                   <th className="px-4 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Project Rate</th>
                   <th className="px-4 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Effective Rate</th>
                   <th className="px-4 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Generated Rev.</th>
+                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Lifetime LTV</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -291,11 +355,14 @@ export function TeamView({ team, projectsData = [], monthlyProjectHours = {}, bi
                       <td className="px-4 py-4 text-sm font-bold text-success">
                         ${Math.round(row.generatedRevenue).toLocaleString()}
                       </td>
+                      <td className="px-4 py-4 text-sm font-bold text-muted-foreground">
+                        ${Math.round(row.ltvValue).toLocaleString()}
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">No data for the selected filters (rate data available for Feb–Apr only)</td>
+                    <td colSpan={8} className="px-6 py-8 text-center text-muted-foreground">No data for the selected filters (rate data available for Feb–Apr only)</td>
                   </tr>
                 )}
               </tbody>
