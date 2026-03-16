@@ -54,6 +54,12 @@ export function Sidebar() {
     }
   };
 
+  const handleLogout = () => {
+    document.cookie = "auth_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    localStorage.removeItem("isLoggedIn");
+    window.location.href = "/login";
+  };
+
   return (
     <>
       {/* Mobile menu button */}
@@ -115,7 +121,7 @@ export function Sidebar() {
           </nav>
 
           {/* Account Section */}
-          <div className="p-4 border-t border-border">
+          <div className="p-4 border-t border-border space-y-2">
             <div 
               className="group flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer relative"
               onClick={() => document.getElementById('avatar-upload')?.click()}
@@ -146,6 +152,14 @@ export function Sidebar() {
                 onChange={handleUpload}
               />
             </div>
+
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-danger hover:bg-danger/5 transition-colors"
+            >
+              <X size={20} />
+              Logout
+            </button>
           </div>
         </div>
       </aside>
