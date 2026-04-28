@@ -39,12 +39,12 @@ export function DashboardView({ data, projects, team }: DashboardViewProps) {
 
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(getDefaultMonthIndex());
   
-  const displayMonthIndex = selectedMonthIndex + 1;
+  const displayMonthIndex = selectedMonthIndex;
   const originalMonthData = data[selectedMonthIndex] || {};
   
-  // Stats for the selected month (offset by + 1)
+  // Stats for the selected month
   const currentMonthData = data[displayMonthIndex] || {};
-  const prevMonthData = data[displayMonthIndex - 1] || {};
+  const prevMonthData = data[displayMonthIndex === 0 ? 0 : displayMonthIndex - 1] || {};
 
   const calculateTrend = (current: number, prev: number) => {
     if (!prev) return { value: 0, isPositive: true };
@@ -62,7 +62,7 @@ export function DashboardView({ data, projects, team }: DashboardViewProps) {
     setSortConfig({ key, direction });
   };
 
-  const performanceMonthName = data[displayMonthIndex]?.Month || "Next Month";
+  const performanceMonthName = data[displayMonthIndex]?.Month || "Unknown";
 
   const sortedProjects = [...projects].sort((a, b) => {
     if (sortConfig) {
@@ -137,7 +137,7 @@ export function DashboardView({ data, projects, team }: DashboardViewProps) {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard Overview</h1>
-          <p className="text-muted-foreground mt-1">Real-time data for {originalMonthData.Month || "N/A"} (showing projections for {performanceMonthName})</p>
+          <p className="text-muted-foreground mt-1">Real-time data and projections for {performanceMonthName}</p>
         </div>
         <DateFilter 
           selectedMonth={selectedMonthIndex} 

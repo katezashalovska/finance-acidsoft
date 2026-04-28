@@ -12,7 +12,8 @@ import {
   PieChart, 
   Settings,
   Menu,
-  X
+  X,
+  Target
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ const navigation = [
   { name: "Operational Expenses", href: "/opex", icon: PieChart },
   { name: "Profitability", href: "/profitability", icon: BarChart3 },
   { name: "Projects", href: "/projects", icon: Briefcase },
+  { name: "Sales", href: "/sales", icon: Target },
   { name: "Team", href: "/team", icon: Users },
   { name: "Forecast", href: "/forecast", icon: Briefcase },
   { name: "Settings", href: "/settings", icon: Settings },

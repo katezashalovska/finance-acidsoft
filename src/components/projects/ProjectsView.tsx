@@ -76,8 +76,8 @@ export function ProjectsView({ rates, projectHours, payments, initialMonthIndex,
     const paymentItem = payments.find(p => normalize(p.name) === normName);
     const realPayment = paymentItem 
       ? (initialMonthIndex === 'lifetime' 
-          ? paymentItem.realMonthly.reduce((sum: number, val: number) => sum + (val || 0), 0)
-          : paymentItem.realMonthly[initialMonthIndex as number] || 0) 
+          ? paymentItem.realCurrentMonthly.reduce((sum: number, val: number) => sum + (val || 0), 0)
+          : paymentItem.realCurrentMonthly[initialMonthIndex as number] || 0) 
       : 0;
 
     // "Estimated cost" = max member hours * project billed rate
@@ -158,7 +158,7 @@ export function ProjectsView({ rates, projectHours, payments, initialMonthIndex,
          estCost += maxMemHours * rate;
          maxCost += hd.members?.reduce((sum: number, m: any) => sum + (m.total * getMemberRate(m.name)), 0) || 0;
       });
-      realReceipt = payments.reduce((sum, p) => sum + (p.realMonthly[i] || 0), 0);
+      realReceipt = payments.reduce((sum, p) => sum + (p.realCurrentMonthly[i] || 0), 0);
     } else {
       const hd = hourDataForMonth.find(h => h.projectName === selectedProject);
       if (hd) {
@@ -171,7 +171,7 @@ export function ProjectsView({ rates, projectHours, payments, initialMonthIndex,
       }
       const paymentItem = payments.find(p => p.name === selectedProject);
       if (paymentItem) {
-        realReceipt = paymentItem.realMonthly[i] || 0;
+        realReceipt = paymentItem.realCurrentMonthly[i] || 0;
       }
     }
 

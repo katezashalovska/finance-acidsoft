@@ -37,8 +37,8 @@ export function RevenueView({ projects }: RevenueViewProps) {
   const months = ["May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr"];
   const currentMonthName = months[selectedMonthIndex];
 
-  const performanceMonthIndex = selectedMonthIndex + 1;
-  const performanceMonthName = months[performanceMonthIndex] || "Next Month";
+  const performanceMonthIndex = selectedMonthIndex;
+  const performanceMonthName = months[performanceMonthIndex] || "Unknown";
 
   // Calculate totals from ALL projects for the selected month FIRST
   const totalReal = projects.reduce((sum, p) => sum + (p.realCurrentMonthly[performanceMonthIndex] || 0), 0);
@@ -66,7 +66,7 @@ export function RevenueView({ projects }: RevenueViewProps) {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Revenue Analysis</h1>
-          <p className="text-muted-foreground mt-1">Project performance for {currentMonthName} 2025-26 (showing projections for {performanceMonthName})</p>
+          <p className="text-muted-foreground mt-1">Project performance for {currentMonthName} 2025-26</p>
         </div>
         <DateFilter 
           selectedMonth={selectedMonthIndex} 

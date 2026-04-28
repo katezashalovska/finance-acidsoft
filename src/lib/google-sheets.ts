@@ -32,6 +32,39 @@ export async function fetchSheetData(gid: string, spreadsheetIdOverride?: string
   }
 }
 
+export async function fetchSheetDataWithCols(gid: string, spreadsheetIdOverride?: string) {
+  const defaultSpreadsheetId = "1rVf7853cSxXa_DcErq062mSJzD0UlCITk4oFM0mQh-s";
+  const spreadsheetId = spreadsheetIdOverride || defaultSpreadsheetId;
+  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&gid=${gid}&t=${Date.now()}`;
+
+  try {
+    const response = await fetch(url, { cache: 'no-store' });
+    const text = await response.text();
+    const jsonData = JSON.parse(text.substring(text.indexOf("(") + 1, text.lastIndexOf(")")));
+    
+    if (jsonData.status === "error") {
+      throw new Error(jsonData.errors[0].detailed_message);
+    }
+
+    const table = jsonData.table;
+    const rows = table.rows.map((row: any) => {
+      const rowData: any = {};
+      row.c.forEach((cell: any, index: number) => {
+        const colLabel = table.cols[index].label || `col_${index}`;
+        rowData[colLabel] = cell ? cell.v : null;
+        rowData[`col_${index}`] = cell ? cell.v : null;
+      });
+      return rowData;
+    });
+
+    return { rows, cols: table.cols };
+  } catch (error) {
+    console.error("Error fetching sheet data with cols:", error);
+    return { rows: [], cols: [] };
+  }
+}
+
+
 export function transformModelData(rows: any[]) {
   const revenueRow = rows.find(r => r["col_0"] === "Revenue");
   const netProfitRow = rows.find(r => r["col_0"] === "Gross profit"); 
@@ -145,7 +178,7 @@ export function transformTeamData(rows: any[]) {
     !r["col_0"].includes("Date")
   );
   
-  return teamRows.map(r => {
+  const parsed = teamRows.map(r => {
     const monthlySalaries = [];
     for (let i = 1; i <= 25; i++) {
       monthlySalaries.push(r[`col_${i}`]);
@@ -156,6 +189,16 @@ export function transformTeamData(rows: any[]) {
       monthlySalaries
     };
   });
+
+  // Deduplicate by name
+  const unique = new Map();
+  parsed.forEach(item => {
+    if (!unique.has(item.name)) {
+      unique.set(item.name, item);
+    }
+  });
+
+  return Array.from(unique.values());
 }
 
 export function transformOpexData(rows: any[]) {
@@ -173,8 +216,8 @@ export function transformOpexData(rows: any[]) {
     
     if (row) {
       for (let i = 0; i < 12; i++) {
-        // Opex also follows the month + 1 rule for real values
-        monthlyValues[i] = row[`col_${i + 2}`] || 0;
+        // Use exact month column (no month+1 rule for display)
+        monthlyValues[i] = row[`col_${i + 1}`] || 0;
       }
     }
 
@@ -233,9 +276,18 @@ export function transformTimeTrackingData(rows: any[]) {
         parseFloat(r["col_2"]) || 0,
         parseFloat(r["col_3"]) || 0,
         parseFloat(r["col_4"]) || 0,
-        parseFloat(r["col_5"]) || 0
+        parseFloat(r["col_5"]) || 0,
+        parseFloat(r["col_6"]) || 0
       ];
-      const total = parseFloat(r["col_6"]) || 0;
+      
+      let total = 0;
+      const totalKey = Object.keys(r).find(k => k.toUpperCase().trim() === "TOTAL");
+      if (totalKey && r[totalKey] !== null && r[totalKey] !== undefined) {
+        total = parseFloat(r[totalKey]) || 0;
+      } else {
+        // Fallback for 5-week or 4-week months if header missing
+        total = parseFloat(r["col_7"]) || parseFloat(r["col_6"]) || 0;
+      }
 
       if (total > 0) {
         currentProject.members.push({
@@ -322,5 +374,77 @@ export function transformBilledRevenueData(rows: any[]) {
       monthlyBilledHours,
       monthlyBilledRevenue,
     };
+  });
+}
+
+export function transformSalesData(rows: any[], columns: any[]) {
+  // columns map: index -> week name label
+  const weeks = [];
+  // Start from index 1 because index 0 is 'Date' or 'Row Labels'
+  for (let i = 1; i < columns.length; i++) {
+    const label = columns[i].label;
+    if (label && label.trim() !== '') {
+      weeks.push({ index: i, name: label.trim() });
+    }
+  }
+
+  // Map rows by metric name 
+  const metricsMap: Record<string, any> = {};
+  const metricsMapAll: Record<string, any[]> = {};
+  
+  rows.forEach(r => {
+    const metricName = r["col_0"] ? r["col_0"].toString().trim() : "";
+    if (metricName) {
+      if (!metricsMap[metricName]) {
+        metricsMap[metricName] = r;
+      }
+      if (!metricsMapAll[metricName]) {
+        metricsMapAll[metricName] = [];
+      }
+      metricsMapAll[metricName].push(r);
+    }
+  });
+
+  const getValue = (row: any, colIndex: number) => {
+     if (!row) return 0;
+     let val = row[`col_${colIndex}`];
+     if (typeof val === 'number') return val;
+     if (typeof val === 'string') {
+        const cleaned = val.replace(',', '.');
+        if (cleaned.includes('%')) {
+           return (parseFloat(cleaned) || 0) * 100;
+        }
+        return parseFloat(cleaned) || 0;
+     }
+     return 0;
+  };
+
+  return weeks.map(w => {
+     let hiredUs = 0;
+     if (metricsMap["Hired Total"]) {
+         hiredUs = getValue(metricsMap["Hired Total"], w.index);
+     } else if (metricsMap["Hired us"]) {
+         hiredUs = getValue(metricsMap["Hired us"], w.index);
+     } else if (metricsMapAll["Hired"]) {
+         // Sum all "Hired" rows if there's no explicit aggregate row
+         hiredUs = metricsMapAll["Hired"].reduce((sum, r) => sum + getValue(r, w.index), 0);
+     }
+
+     return {
+       week: w.name,
+       proposals: getValue(metricsMap["Proposals Total"] || metricsMap["Proposals"] || metricsMap["Connections Sent"], w.index),
+       viewed: getValue(metricsMap["Viewed Total"] || metricsMap["Viewed"] || metricsMap["Accepted invitation"], w.index),
+       interview: getValue(metricsMap["Interviewed"] || metricsMap["Interview Total"] || metricsMap["Interview"] || metricsMap["Replied"], w.index),
+       hiredUs,
+       hiredCompetitor: getValue(metricsMap["Hired a competitor"], w.index),
+       declined: getValue(metricsMap["Declined by client"], w.index),
+       connectsSpent: getValue(metricsMap["Connects Spent"] || metricsMap["Connects Spend"] || metricsMap["Connects"], w.index),
+       backConnects: Math.abs(getValue(metricsMap["Connects Returned"] || metricsMap["Back connects"], w.index)),
+       boostedProposalSpend: getValue(metricsMap["Boosted Proposal Spend"], w.index),
+       boostedConnectsRefunded: getValue(metricsMap["Boosted Connects Refunded"], w.index),
+       boostedProfileSpend: getValue(metricsMap["Bosted Profile Spend"] || metricsMap["Boosted Profile Spend"], w.index),
+       percentOfView: getValue(metricsMap["Percent of view"], w.index),
+       percentOfInterview: getValue(metricsMap["Percent of interview"], w.index),
+     };
   });
 }
