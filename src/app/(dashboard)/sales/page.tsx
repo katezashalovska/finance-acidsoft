@@ -24,7 +24,7 @@ export default async function SalesPage({ searchParams }: { searchParams: { mont
        { name: "Upwork", gid: "957980656" },
        { name: "LinkedIn", gid: "532983770" }
      ];
-  } else if (selectedMonth >= 8 && selectedMonth <= 10) { // Jan, Feb, Mar
+  } else if (typeof selectedMonth === 'number' && selectedMonth >= 8 && selectedMonth <= 10) { // Jan, Feb, Mar
      tabsDefinition = [
        { name: "Upwork Q1", gid: "1809725206" }
      ];
